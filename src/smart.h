@@ -96,7 +96,7 @@ extern "C" {
 #define SAT_FLAGS_TLEN_SECTOR_CNT   0x02
 #define SAT_FLAGS_TLEN_BYTES        0x01
 
-/* USB bridge chip identification (CrystalDiskInfo-style) */
+/* USB bridge chip identification */
 typedef enum _USB_BRIDGE_TYPE {
     USB_BRIDGE_UNKNOWN     = 0,
     USB_BRIDGE_SAT         = 1,   /* Standard SAT (A1h/85h) */
@@ -123,7 +123,7 @@ typedef enum _USB_BRIDGE_TYPE {
 #define NVME_CRIT_WARN_PMR_RO               0x20
 
 /* ============================================================
- * Drive health status (CrystalDiskInfo-style)
+ * Drive health status
  * ============================================================ */
 typedef enum _DRIVE_HEALTH_STATUS {
     HEALTH_STATUS_UNKNOWN  = 0,
@@ -386,7 +386,7 @@ typedef struct _DRIVE_INFO {
     DWORD       dwErrStorageProtocol;
     DWORD       dwErrLogSense;
 
-    /* ---- New fields (CrystalDiskInfo-style) ---- */
+    /* ---- New fields  ---- */
     DRIVE_HEALTH_STATUS eHealthStatus;   /* Good / Caution / Bad */
     DRIVE_VENDOR eVendor;                /* Detected drive vendor */
 
@@ -434,7 +434,7 @@ typedef struct _DRIVE_INFO {
  * Attribute classification
  * ============================================================ */
 
-/* Attribute criticality levels (CrystalDiskInfo-style) */
+/* Attribute criticality levels*/
 typedef enum _ATTR_CRITICALITY {
     ATTR_CRIT_NONE      = 0,   /* Informational only */
     ATTR_CRIT_ADVISORY  = 1,   /* Advisory: raw > 0 means Caution */
