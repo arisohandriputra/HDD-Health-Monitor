@@ -105,7 +105,7 @@ typedef struct _SAT_PASSTHROUGH_BUF {
 #define SAT_SENSEBUF_OFFSET  (sizeof(SCSI_PASS_THROUGH_DIRECT) + sizeof(ULONG))
 
 /* CDI-style SCSI_PASS_THROUGH (non-DIRECT) for USB bridges
- * CrystalDiskInfo uses IOCTL_SCSI_PASS_THROUGH (not DIRECT)
+ * IOCTL_SCSI_PASS_THROUGH (not DIRECT)
  * because many USB-SATA bridge chips require the buffer-based approach. */
 typedef struct _CDI_SAT_PASSTHROUGH_BUF {
     SCSI_PASS_THROUGH spt;
@@ -253,7 +253,7 @@ static BOOL IsBufferAllFF(const BYTE* p, int nLen)
 }
 
 /* ============================================================
- * CrystalDiskInfo-style SMART attribute name table
+ * SMART attribute name table
  * Comprehensive coverage of standard + vendor-specific attributes
  * ============================================================ */
 const ATTR_NAME g_AttrNames[] = {
@@ -514,7 +514,7 @@ const char* GetVendorName(DRIVE_VENDOR eVendor)
 
 /* ============================================================
  * Drive vendor detection from model name
- * CrystalDiskInfo identifies vendors for attribute interpretation
+ * Identifies vendors for attribute interpretation
  * ============================================================ */
 DRIVE_VENDOR DetectDriveVendor(const char* szModel)
 {
@@ -729,7 +729,7 @@ BOOL IsNVMeDrive(HANDLE hDrive)
     }
 
     /* For USB drives (bus type 7), check if this might be NVMe-over-USB.
-     * CrystalDiskInfo checks: product name contains "NVMe", OR the bridge
+     * product name contains "NVMe", OR the bridge
      * chip is a known NVMe-over-USB bridge (JMicron JMS583/586, ASMedia
      * ASM2362, Realtek RTL9210, VLI VL716/VL717).
      *
@@ -911,7 +911,6 @@ BOOL GetBridgeIdentity(HANDLE hDrive, DRIVE_INFO* pInfo)
     }
 
     /* Try to extract VID/PID from the STORAGE_DEVICE_DESCRIPTOR strings.
-     * CrystalDiskInfo also does this as a quick first check.
      * Some USB bridges include VID/PID in the vendor or product strings. */
     if (pDesc->VendorIdOffset && pDesc->VendorIdOffset < dwBytes) {
         const char* pStr = (const char*)outBuf + pDesc->VendorIdOffset;
@@ -924,7 +923,7 @@ BOOL GetBridgeIdentity(HANDLE hDrive, DRIVE_INFO* pInfo)
     }
 
     /* Also try SCSI INQUIRY to get bridge vendor/product for more accurate detection.
-     * CrystalDiskInfo uses SCSI INQUIRY for USB bridge identification. */
+     * SCSI INQUIRY for USB bridge identification. */
     {
         CDI_SAT_PASSTHROUGH_BUF sptwb;
         DWORD dwInqBytes = 0;
@@ -974,7 +973,6 @@ BOOL GetBridgeIdentity(HANDLE hDrive, DRIVE_INFO* pInfo)
 
 /* ============================================================
  * USB VID/PID retrieval via SetupDi API
- * CrystalDiskInfo uses this method to identify USB bridge chips.
  * The VID/PID is extracted from the device's hardware ID string
  * in the Windows registry (SPDRP_HARDWAREID), which contains
  * entries like "USB\\VID_152D&PID_0583".
@@ -1011,14 +1009,11 @@ static BOOL ParseVidPidFromHardwareId(const char* szHwId, WORD* pwVid, WORD* pwP
     return (*pwVid != 0 || *pwPid != 0);
 }
 
-/* Get the device instance path for a PhysicalDrive handle.
- * CrystalDiskInfo uses the OS device path to trace back to the
- * USB parent device and read its VID/PID. */
+/* Get the device instance path for a PhysicalDrive handle.*/
 static BOOL GetDevicePathFromHandle(HANDLE hDrive, WORD* pwVid, WORD* pwPid)
 {
     /* Walk the device tree from a PhysicalDrive handle to find the
-     * USB parent device and extract its VID/PID.  This is the same
-     * approach CrystalDiskInfo uses for USB bridge identification. */
+     * USB parent device and extract its VID/PID.  This is the same */
     STORAGE_PROPERTY_QUERY spq;
     ZeroMemory(&spq, sizeof(spq));
     spq.PropertyId = StorageDeviceProperty;
@@ -1278,23 +1273,22 @@ BOOL GetIdentifyData(HANDLE hDrive, int nDrive, DRIVE_INFO* pInfo)
     if (qwSectors == 0) qwSectors = (unsigned __int64)dwSectors28;
     pInfo->dwCapacityMB = (DWORD)(qwSectors * 512 / (1024 * 1024));
 
-    /* CrystalDiskInfo-style IDENTIFY parsing */
     /* Word 82-84: Command set/feature support */
     pInfo->bSMART_Supported = (pIdent[82] & 0x0001) ? TRUE : FALSE;
     pInfo->bSMART_Enabled   = (pIdent[85] & 0x0001) ? TRUE : FALSE;
 
-    /* Word 217: Nominal Media Rotation Rate (CrystalDiskInfo uses this)
+    /* Word 217: Nominal Media Rotation Rate
      * 0x0001 = non-rotating (SSD), >= 0x0401 = RPM */
     pInfo->wRotationRate = pIdent[217];
 
-    /* Word 76: Serial ATA Capabilities (CrystalDiskInfo reads this)
+    /* Word 76: Serial ATA Capabilities 
      * Bit 1 = SATA/150, Bit 2 = SATA/300, Bit 3 = SATA/600
      * Used to determine max transfer mode */
     if (pIdent[76] & 0x0002) { /* SATA/150 */ }
     if (pIdent[76] & 0x0004) { /* SATA/300 */ }
     if (pIdent[76] & 0x0008) { /* SATA/600 */ }
 
-    /* Word 88: Ultra DMA mode support (CrystalDiskInfo uses this
+    /* Word 88: Ultra DMA mode support 
      * for performance calculation — current vs max UDMA mode)
      * Bits 0-7 = supported modes, Bits 8-15 = selected mode */
     /* (We store this for potential use by CalculatePerformance) */
@@ -1401,7 +1395,7 @@ BOOL GetSMARTPredictFailure(HANDLE hDrive, int nDrive, BOOL* pbFail)
 }
 
 /* ============================================================
- * SMART Error Log reading (CrystalDiskInfo reads these)
+ * SMART Error Log reading
  * Provides diagnostic detail beyond attribute raw values
  * ============================================================ */
 static BOOL ReadSMARTLog(HANDLE hDrive, int nDrive, BYTE bLogAddr,
@@ -1762,7 +1756,7 @@ static BOOL SATSendCommand16(HANDLE hDrive, BYTE bFeatures, BYTE bSectorCnt,
         sptwb.spt.DataBufferOffset   = 0;
     }
 
-    /* CrystalDiskInfo uses CK_COND flag (0x20) for SAT commands.
+    /* CK_COND flag (0x20) for SAT commands.
      * Many USB-SATA bridge chips (especially JMicron) require this flag. */
     sptwb.spt.Cdb[0]  = SAT_ATA_PASSTHROUGH_16;
     sptwb.spt.Cdb[1]  = bProtocol;
@@ -2292,7 +2286,7 @@ BOOL GetNVMeHealthLogEx(HANDLE hDrive, DRIVE_INFO* pInfo)
 
 /* ============================================================
  * NVMe data extraction helpers
- * CrystalDiskInfo extracts all 128-bit NVMe counters as 64-bit
+ * Extracts all 128-bit NVMe counters as 64-bit
  * ============================================================ */
 static void ExtractNVMeExtendedInfo(DRIVE_INFO* pInfo)
 {
@@ -2426,9 +2420,9 @@ DRIVE_TYPE DetectDriveType(HANDLE hDrive, DRIVE_INFO* pInfo)
 }
 
 /* ============================================================
- * CrystalDiskInfo-style Health Calculation
+ * Health Calculation
  *
- * CrystalDiskInfo uses a three-tier approach:
+ * Uses a three-tier approach:
  * 1. SSD Life Left: uses vendor-specific remaining life %
  * 2. Threshold comparison: worst value <= threshold → BAD
  * 3. Raw value check: critical attrs with raw > 0 → CAUTION
@@ -2627,7 +2621,7 @@ int CalculateHealth(DRIVE_INFO* pInfo)
 }
 
 /* ============================================================
- * CrystalDiskInfo-style Health Status Determination
+ * Health Status Determination
  *
  * Good:     All attributes within normal range
  * Caution:  Critical attr raw > 0, or advisory attr near threshold
@@ -2796,7 +2790,7 @@ int CalculatePerformance(DRIVE_INFO* pInfo)
 
 /* ============================================================
  * SSD-specific indicator extraction
- * CrystalDiskInfo extracts vendor-specific SSD health info
+ * Extracts vendor-specific SSD health info
  * ============================================================ */
 void ExtractSSDIndicators(DRIVE_INFO* pInfo)
 {
@@ -2916,9 +2910,9 @@ static void ExtractCommonATACounters(DRIVE_INFO* pInfo)
 }
 
 /* ============================================================
- * SMART data validation (CrystalDiskInfo-style)
+ * SMART data validation
  *
- * CrystalDiskInfo validates the SMART read data buffer by:
+ * Validates the SMART read data buffer by:
  * 1. Checking that it's not all zeros
  * 2. Counting valid (non-zero ID) attributes
  * 3. Optional checksum verification (last byte of 512)
@@ -2937,16 +2931,13 @@ static BOOL ValidateSmartData(const BYTE* pRawBuf, int nBufLen)
     }
     if (nValidAttrs == 0) return FALSE;
 
-    /* Checksum: sum of all 512 bytes should be 0 mod 256.
-     * CrystalDiskInfo accepts data even with checksum errors
-     * but flags IsCheckSumError. We accept it too. */
     return TRUE;
 }
 
 /* ============================================================
- * FillSmartData (CrystalDiskInfo-style)
+ * FillSmartData 
  *
- * CrystalDiskInfo parses the raw 512-byte SMART data buffer
+ * Parses the raw 512-byte SMART data buffer
  * by iterating through 12-byte attribute entries, skipping
  * entries with ID=0, and compacting into the Attribute array.
  * This is more robust than simple memcpy because it validates
@@ -2977,9 +2968,9 @@ static int FillSmartData(DRIVE_INFO* pInfo, const BYTE* pRawBuf)
 }
 
 /* ============================================================
- * FillSmartThreshold (CrystalDiskInfo-style)
+ * FillSmartThreshold 
  *
- * CrystalDiskInfo matches thresholds by attribute ID to the
+ * Matches thresholds by attribute ID to the
  * already-parsed attribute array. This handles misaligned or
  * vendor-specific threshold data correctly.
  * ============================================================ */
@@ -3009,7 +3000,7 @@ static int FillSmartThreshold(DRIVE_INFO* pInfo, const BYTE* pRawBuf)
 /* ============================================================
  * Multi-path SMART acquisition for an internal/SATA drive
  *
- * CrystalDiskInfo priority order (most modern/reliable first):
+ * Priority order (most modern/reliable first):
  *   USB drives: 1. SAT (SCSI/ATA Translation - A1h/85h)
  *              2. Storage Protocol query
  *              3. ATA PASS THROUGH
@@ -3021,18 +3012,18 @@ static int FillSmartThreshold(DRIVE_INFO* pInfo, const BYTE* pRawBuf)
  *   3. SAT (SCSI/ATA Translation - A1h/85h)
  *   4. Storage Protocol query
  *
- * CrystalDiskInfo prefers ATA Pass-Through for internal drives
+ * Prefers ATA Pass-Through for internal drives
  * but SAT-first for USB drives (bridge chips need SCSI commands).
  * ============================================================ */
 static BOOL AcquireATASMART(HANDLE hDrive, int nDrive, DRIVE_INFO* pInfo)
 {
     BOOL bAttr = FALSE, bThresh = FALSE;
 
-    /* Enable SMART via both paths (CrystalDiskInfo does this too) */
+    /* Enable SMART via both paths */
     EnableSMART(hDrive, nDrive);
     EnableSMARTSAT(hDrive);
 
-    /* ---- For USB drives: prioritize SAT (CrystalDiskInfo-style) ---- */
+    /* ---- For USB drives: prioritize SAT  ---- */
     if (pInfo->bIsUSB) {
         if (GetSMARTAttributesSAT(hDrive, pInfo)) {
             bAttr = TRUE;
@@ -3045,14 +3036,14 @@ static BOOL AcquireATASMART(HANDLE hDrive, int nDrive, DRIVE_INFO* pInfo)
         }
     }
 
-    /* ---- Path 1: ATA PASS THROUGH (CrystalDiskInfo preferred) ---- */
+    /* ---- Path 1: ATA PASS THROUGH  ---- */
     if (!bAttr && GetSMARTAttributesATAPassthrough(hDrive, pInfo)) {
         bAttr = TRUE;
         pInfo->eAccessMethod = SMART_ACCESS_ATA_PASSTHROUGH;
         bThresh = GetSMARTThresholdsATAPassthrough(hDrive, pInfo);
     }
 
-    /* ---- Path 2: Legacy IOCTL (CrystalDiskInfo fallback) ---- */
+    /* ---- Path 2: Legacy IOCTL ---- */
     if (!bAttr && GetSMARTAttributes(hDrive, nDrive, pInfo)) {
         bAttr = TRUE;
         pInfo->eAccessMethod = SMART_ACCESS_LEGACY_IOCTL;
@@ -3073,7 +3064,7 @@ static BOOL AcquireATASMART(HANDLE hDrive, int nDrive, DRIVE_INFO* pInfo)
     }
 
     if (bAttr) {
-        /* Validate SMART data (CrystalDiskInfo-style) */
+        /* Validate SMART data */
         if (!ValidateSmartData((const BYTE*)&pInfo->attrData,
                                sizeof(SMART_ATTRIBUTE_DATA))) {
             /* Data may be invalid — but still try to use what we have */
@@ -3084,7 +3075,7 @@ static BOOL AcquireATASMART(HANDLE hDrive, int nDrive, DRIVE_INFO* pInfo)
         ExtractCommonATACounters(pInfo);
         ExtractSSDIndicators(pInfo);
 
-        /* Read SMART error log and self-test log (CrystalDiskInfo reads these) */
+        /* Read SMART error log and self-test log  */
         if (!GetSMARTErrorLog(hDrive, nDrive, pInfo)) {
             if (!GetSMARTErrorLogATAPassthrough(hDrive, pInfo))
                 GetSMARTErrorLogSAT(hDrive, pInfo);
@@ -3102,7 +3093,7 @@ static BOOL AcquireATASMART(HANDLE hDrive, int nDrive, DRIVE_INFO* pInfo)
 }
 
 /* ============================================================
- * USB bridge chip detection (CrystalDiskInfo-style)
+ * USB bridge chip detection
  * CDI uses VID/PID matching to select the correct command type
  * for each bridge chip family.
  * ============================================================ */
@@ -3261,7 +3252,7 @@ static BOOL NVMeIdentifyJMicron(HANDLE hDrive, DRIVE_INFO* pInfo)
 
     /* Extract model/serial/firmware from NVMe Identify data.
      * NVMe uses direct ASCII (no byte-swap needed), unlike ATA.
-     * CrystalDiskInfo uses memcpy for NVMe strings. */
+     * memcpy for NVMe strings. */
     BYTE* pIdentBuf = sptwb.DataBuf;
     if (!IsBufferAllZero(pIdentBuf, 64)) {
         /* NVMe Identify Controller: Serial at offset 4 (20 bytes),
@@ -3393,7 +3384,7 @@ static BOOL NVMeIdentifyASMedia(HANDLE hDrive, DRIVE_INFO* pInfo)
         return FALSE;
 
     /* NVMe Identify uses direct ASCII, no byte-swap needed.
-     * CrystalDiskInfo uses memcpy for NVMe strings. */
+     * Uses memcpy for NVMe strings. */
     BYTE* pIdentBuf = sptwb.DataBuf;
     if (!IsBufferAllZero(pIdentBuf, 64)) {
         memcpy(pInfo->szSerial, pIdentBuf + 4, 20);
@@ -3495,7 +3486,7 @@ static BOOL NVMeIdentifyRealtek(HANDLE hDrive, DRIVE_INFO* pInfo)
         return FALSE;
 
     /* NVMe Identify uses direct ASCII, no byte-swap needed.
-     * CrystalDiskInfo uses memcpy for NVMe strings. */
+     * Uses memcpy for NVMe strings. */
     BYTE* pIdentBuf = sptwb.DataBuf;
     if (!IsBufferAllZero(pIdentBuf, 64)) {
         memcpy(pInfo->szSerial, pIdentBuf + 4, 20);
@@ -3732,13 +3723,13 @@ static BOOL NVMeHealthLogVLI(HANDLE hDrive, DRIVE_INFO* pInfo)
 
 /* ============================================================
  * Generic NVMe-over-USB bridge detection and SMART reading
- * CrystalDiskInfo tries all known bridge protocols in sequence
+ * Tries all known bridge protocols in sequence
  * when the bridge type is unknown or auto-detect fails.
  * ============================================================ */
 static BOOL NVMeOverUSBTryAll(HANDLE hDrive, DRIVE_INFO* pInfo)
 {
     /* Try all known NVMe-over-USB bridge protocols in order.
-     * CrystalDiskInfo's approach: try each protocol and use the
+     * try each protocol and use the
      * first one that returns valid data. */
 
     /* 1. JMicron JMS583/586 */
@@ -3870,7 +3861,7 @@ int ScanDrives(DRIVE_INFO* pDrives, int nMaxDrives)
         }
 
         /* --------------------- ATA / USB / SAS --------------------- */
-        /* CrystalDiskInfo priority: try ATA Pass-Through first for IDENTIFY,
+        /* try ATA Pass-Through first for IDENTIFY,
          * then fall back to legacy IOCTL, then SAT/USB. */
         BOOL bIdentOK = FALSE;
 
@@ -3906,7 +3897,7 @@ int ScanDrives(DRIVE_INFO* pDrives, int nMaxDrives)
 
             /* If no VID/PID from SetupDi, try heuristic detection from
              * the bridge vendor/product strings in STORAGE_DEVICE_DESCRIPTOR.
-             * CrystalDiskInfo also uses this as a fallback. */
+             * uses this as a fallback. */
             if (pInfo->wUsbVid == 0 && pInfo->wUsbPid == 0) {
                 /* Try to detect NVMe bridge from product name */
                 char szUpper[17];
@@ -3951,7 +3942,7 @@ int ScanDrives(DRIVE_INFO* pDrives, int nMaxDrives)
 
         /* SMART data — multi-path acquisition */
         if (pInfo->bIsUSB && !pInfo->bIsNVMe) {
-            /* ---- USB drive SMART acquisition (CrystalDiskInfo-style) ---- */
+            /* ---- USB drive SMART acquisition ---- */
             USB_BRIDGE_TYPE bridge = pInfo->eUsbBridgeType;
 
             if (bridge == USB_BRIDGE_NVME_JMICRON) {
@@ -3995,9 +3986,6 @@ int ScanDrives(DRIVE_INFO* pDrives, int nMaxDrives)
                 }
             }
 
-            /* If NVMe-over-USB bridge type is unknown or detection failed,
-             * try all known NVMe-over-USB bridge protocols.
-             * CrystalDiskInfo does this when bridge identification is uncertain. */
             if (!pInfo->bIsNVMe && bridge != USB_BRIDGE_JMICRON &&
                 bridge != USB_BRIDGE_SUNPLUS && bridge != USB_BRIDGE_CYPRESS &&
                 bridge != USB_BRIDGE_IO_DATA && bridge != USB_BRIDGE_LOGITEC &&
