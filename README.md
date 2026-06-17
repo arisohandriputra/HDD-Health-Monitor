@@ -2,7 +2,8 @@
 
 **100% Free and Open Source Software (FOSS)**
 
-<img width="760" height="620" alt="image" src="https://github.com/user-attachments/assets/974c3d26-8544-43a2-957b-915e312c5bc6" />
+<img width="379" alt="image" src="https://github.com/user-attachments/assets/974c3d26-8544-43a2-957b-915e312c5bc6" />
+<img width="379" alt="Screenshot 2026-06-17 130619" src="https://github.com/user-attachments/assets/5e2d8ec2-0d8b-438c-aec3-5ef92378cc50" />
 
 ---
 
