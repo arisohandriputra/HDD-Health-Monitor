@@ -8,7 +8,7 @@
 
 ## Author
 
-**Ari sohandri Putra**
+**Ari Sohandri Putra**
 
 If you find this tool useful, please consider supporting the author via
 GitHub Sponsors:
