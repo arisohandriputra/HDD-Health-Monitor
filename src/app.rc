@@ -3,7 +3,7 @@
  *  ---------------------------------------------------------------------------
  *  100% Free and Open Source Software (FOSS).
  *
- *  Author  : Ari Soandri Putra
+ *  Author  : Ari Sohandri Putra
  *  Company : ARImetic Inc.
  *  Sponsor : https://github.com/sponsors/arisohandriputra/
  *  License : MIT
@@ -50,11 +50,11 @@ BEGIN
             VALUE "FileDescription",  "Low-Level HDD Health Monitor - Free Open Source"
             VALUE "FileVersion",      "1.1.0.0"
             VALUE "InternalName",     "HDD Health Monitor 1.1"
-            VALUE "LegalCopyright",   "Copyright (c) 2026 Ari Soandri Putra. MIT License."
+            VALUE "LegalCopyright",   "Copyright (c) 2026 Ari Sohandri Putra. MIT License."
             VALUE "OriginalFilename", "HDDHealth.exe"
             VALUE "ProductName",      "HDDHealth 1.1"
             VALUE "ProductVersion",   "1.1.0.0"
-            VALUE "Comments",         "100% Free Open Source Software. Author: Ari Soandri Putra (ARImetic Inc.). Sponsor: https://github.com/sponsors/arisohandriputra/"
+            VALUE "Comments",         "100% Free Open Source Software. Author: Ari Sohandri Putra (ARImetic Inc.). Sponsor: https://github.com/sponsors/arisohandriputra/"
         END
     END
     BLOCK "VarFileInfo"

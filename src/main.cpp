@@ -10,7 +10,7 @@
  *    - Main window class registration and creation.
  *    - The standard Win32 message loop.
  *
- *  Author  : Ari Soandri Putra
+ *  Author  : Ari Sohandri Putra
  *  Company : ARImetic Inc.
  *  Sponsor : https://github.com/sponsors/arisohandriputra/
  *  License : MIT

@@ -3,7 +3,7 @@
  *  ---------------------------------------------------------------------------
  *  100% Free and Open Source Software (FOSS).
  *
- *  Author  : Ari Soandri Putra
+ *  Author  : Ari Sohandri Putra
  *  Company : ARImetic Inc.
  *  Sponsor : https://github.com/sponsors/arisohandriputra/
  *  License : MIT

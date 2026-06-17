@@ -5,7 +5,7 @@
       processorArchitecture="*"
       name="AriSohandriPutra.HDDHealthMonitor"
       type="win32"/>
-  <description>HDDHealth Monitor by Ari Soandri Putra</description>
+  <description>HDDHealth Monitor by Ari Sohandri Putra</description>
   <trustInfo xmlns="urn:schemas-microsoft-com:asm.v3">
     <security>
       <requestedPrivileges>

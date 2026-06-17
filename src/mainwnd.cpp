@@ -3,7 +3,7 @@
  *  ---------------------------------------------------------------------------
  *  100% Free and Open Source Software (FOSS).
  *
- *  Author  : Ari Soandri Putra
+ *  Author  : Ari Sohandri Putra
  *  Company : ARImetic Inc.
  *  Sponsor : https://github.com/sponsors/arisohandriputra/
  *  License : MIT
@@ -2062,7 +2062,7 @@ static LRESULT CALLBACK AboutDlgProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM
             SendMessageA(hCopy, WM_SETFONT, (WPARAM)g_hFontNormal, TRUE);
 
             HWND hDrv = CreateWindowExA(0, "STATIC",
-                "Author: Ari Soandri Putra -  Open Source / MIT License",
+                "Author: Ari Sohandri Putra -  Open Source / MIT License",
                 WS_CHILD | WS_VISIBLE | SS_CENTER,
                 20, 140, cx - 40, 18,
                 hDlg, (HMENU)0, g_hInst, NULL);

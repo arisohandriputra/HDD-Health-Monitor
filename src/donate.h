@@ -3,7 +3,7 @@
  *  ---------------------------------------------------------------------------
  *  This project is 100% Free and Open Source Software (FOSS).
  *
- *  Author  : Ari Soandri Putra
+ *  Author  : Ari Sohandri Putra
  *  Company : ARImetic Inc.
  *  Sponsor : https://github.com/sponsors/arisohandriputra/
  *  License : MIT (see LICENSE file in the project root)
@@ -28,7 +28,7 @@
 /* Author / project attribution strings, kept in one place so that
    every UI surface (About dialog, donate dialog, manifest, version
    info) stays perfectly consistent. */
-#define DONATE_AUTHOR   "Ari Soandri Putra"
+#define DONATE_AUTHOR   "Ari Sohandri Putra"
 #define DONATE_COMPANY  "ARImetic Inc."
 #define DONATE_PRODUCT  "HDDHealth Monitor"
 
