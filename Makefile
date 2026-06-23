@@ -23,7 +23,7 @@ endif
 SRCDIR  = src
 OBJDIR  = obj
 OUTDIR  = bin
-TARGET  = $(OUTDIR)/HDDHealth.exe
+TARGET  = $(OUTDIR)/HDDHealthMonitor.exe
 SRCS    = $(SRCDIR)/main.cpp \
           $(SRCDIR)/mainwnd.cpp \
           $(SRCDIR)/smart.cpp \
