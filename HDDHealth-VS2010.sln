@@ -1,0 +1,22 @@
+Microsoft Visual Studio Solution File, Format Version 11.00
+# Visual Studio 2010
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "HDDHealth", "HDDHealth\HDDHealth.vcxproj", "{8D4F2C9A-1A2B-4E5F-9A6C-7B8D9E0F1A2B}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Win32 = Debug|Win32
+		Release|Win32 = Release|Win32
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{8D4F2C9A-1A2B-4E5F-9A6C-7B8D9E0F1A2B}.Debug|Win32.ActiveCfg = Debug|Win32
+		{8D4F2C9A-1A2B-4E5F-9A6C-7B8D9E0F1A2B}.Debug|Win32.Build.0 = Debug|Win32
+		{8D4F2C9A-1A2B-4E5F-9A6C-7B8D9E0F1A2B}.Release|Win32.ActiveCfg = Release|Win32
+		{8D4F2C9A-1A2B-4E5F-9A6C-7B8D9E0F1A2B}.Release|Win32.Build.0 = Release|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {B1D3F4A5-9C8E-4D2F-A1B7-3E5C6D7E8F90}
+	EndGlobalSection
+EndGlobal
