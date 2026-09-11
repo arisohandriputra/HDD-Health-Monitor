@@ -1,6 +1,8 @@
 # HDDHealth Monitor
 
-**100% Free and Open Source Software (FOSS)**
+**Free and Open Source Software**
+
+<img width="760" height="620" alt="image" src="https://github.com/user-attachments/assets/8ec7fbf1-b3d4-441a-868b-d95b560223cc" />
 
 A low-level Windows utility that reads raw S.M.A.R.T. data directly from
 physical drives via `DeviceIoControl` and presents it through a clean,
@@ -11,13 +13,13 @@ with **MinGW / TDM-GCC**.
 
 ## Author
 
-**Ari Sohandri Putra** — [GitHub Sponsors](https://github.com/sponsors/arisohandriputra/)
+**Ari Sohandri Putra** - [GitHub Sponsors](https://github.com/sponsors/arisohandriputra/)
 
 If you find this tool useful, please consider supporting the author.
 
 ## License
 
-[MIT License](./LICENSE) — 100% Free and Open Source Software.
+[MIT License](./LICENSE) - 100% Free and Open Source Software.
 
 ---
 
