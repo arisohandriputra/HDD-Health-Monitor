@@ -1,28 +1,15 @@
 /* ============================================================================
- *  HDDHealth Monitor - MinGW compatibility shims
- *  ---------------------------------------------------------------------------
- *  100% Free and Open Source Software (FOSS).
+ *  HDDHealth Monitor 1.3 - MinGW compatibility shims
  *
  *  Author  : Ari Sohandri Putra
- *  Company : ARImetic Inc.
  *  Sponsor : https://github.com/sponsors/arisohandriputra/
  *  License : MIT
  *
- *  Purpose:
- *    The official MinGW headers historically shipped without several SCSI
- *    pass-through definitions that are needed by smart.cpp when reading
- *    S.M.A.R.T. data from RAID / NVMe controllers.  This header:
- *      1. Pins the minimum Windows target version (Vista / 0x0600).
- *      2. Provides fallback definitions for IOCTL_SCSI_PASS_THROUGH* and
- *         the SCSI_PASS_THROUGH_DIRECT / SRB_IO_CONTROL structures if the
- *         MinGW headers have not already declared them.
- *
- *  The fallback is wrapped in #ifndef _NTDDSCSI_H_ so that the official
- *  headers take precedence when they are available (e.g. when building
- *  with the Windows SDK instead of MinGW).
+ *  MinGW headers historically shipped without some SCSI pass-through defs.
+ *  This header provides fallbacks for IOCTL_SCSI_PASS_THROUGH* and friends.
+ *  Under MSVC these are harmless (the SDK headers take precedence).
  * ============================================================================
  */
-
 #pragma once
 #ifndef MINGW_COMPAT_H
 #define MINGW_COMPAT_H

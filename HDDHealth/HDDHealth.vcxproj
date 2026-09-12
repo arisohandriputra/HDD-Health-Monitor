@@ -182,6 +182,8 @@ echo 100%% Free Open Source Software - have fun!</Command>
     <ClCompile Include="src\mainwnd.cpp" />
     <ClCompile Include="src\smart.cpp" />
     <ClCompile Include="src\donate.cpp" />
+    <ClCompile Include="src\tools.cpp" />
+    <ClCompile Include="src\drive_db.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\mainwnd.h" />
@@ -189,9 +191,14 @@ echo 100%% Free Open Source Software - have fun!</Command>
     <ClInclude Include="src\donate.h" />
     <ClInclude Include="src\mingw_compat.h" />
     <ClInclude Include="src\resource.h" />
+    <ClInclude Include="src\tools.h" />
+    <ClInclude Include="src\drive_db.h" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="src\app.rc" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="src\drives.json" />
   </ItemGroup>
   <ItemGroup>
     <None Include="src\app.manifest" />

@@ -1,23 +1,15 @@
 /* ============================================================================
- *  HDDHealth Monitor - S.M.A.R.T. public interface
- *  ---------------------------------------------------------------------------
- *  100% Free and Open Source Software (FOSS).
+ *  HDDHealth Monitor 1.3 - S.M.A.R.T. public interface
  *
  *  Author  : Ari Sohandri Putra
- *  Company : ARImetic Inc.
  *  Sponsor : https://github.com/sponsors/arisohandriputra/
  *  License : MIT
  *
- *  This header exposes the public surface of smart.cpp:
- *    - DRIVE_INFO structure (one per detected physical drive)
- *    - SMART_ATTRIBUTE structure (one per attribute, up to 30 per drive)
- *    - ScanDrives() enumeration entry point
- *
- *  IOCTL / ATA / NVMe constants that some MinGW headers omit are also
- *  defined here for convenience.
+ *  Public surface of smart.cpp: DRIVE_INFO struct, SMART_ATTRIBUTE struct,
+ *  ScanDrives() entry point, plus IOCTL/ATA/NVMe constants that some
+ *  MinGW headers don't define.
  * ============================================================================
  */
-
 #pragma once
 #ifndef SMART_H
 #define SMART_H
@@ -158,6 +150,29 @@ typedef enum _DRIVE_VENDOR {
     VENDOR_GOODRAM     = 18,
     VENDOR_PLEXTOR     = 19,
     VENDOR_OCZ         = 20,
+    /* New vendors added in v1.3 */
+    VENDOR_PHISON      = 21,  /* Phison Electronics */
+    VENDOR_SILICONMOTION = 22, /* Silicon Motion (SMI) */
+    VENDOR_INNOGRIT     = 23,  /* Innogrit (IG) */
+    VENDOR_REALTEK_SSD = 24,  /* Realtek SSD controllers */
+    VENDOR_YMTC        = 25,  /* Yangtze Memory Technologies */
+    VENDOR_MAXIOTECH   = 26,  /* Maxio Technology */
+    VENDOR_HIKSEMI     = 27,  /* HiKsemi (HIKOKI storage) */
+    VENDOR_LEVEN       = 28,  /* Leven/Jetram */
+    VENDOR_PATRIOT     = 29,  /* Patriot Memory */
+    VENDOR_GIGABYTE     = 30,  /* Gigabyte AORUS SSDs */
+    VENDOR_ASROCK       = 31,  /* ASRock Phantom Gaming SSDs */
+    VENDOR_SEAGATE_EXOS = 32,  /* Seagate Exos enterprise */
+    VENDOR_FUJITSU      = 33,  /* Legacy Fujitsu HDDs */
+    VENDOR_QUANTUM      = 34,  /* Legacy Quantum HDDs */
+    VENDOR_MAXTOR       = 35,  /* Legacy Maxtor HDDs */
+    VENDOR_FUSIONIO     = 36,  /* Legacy Fusion-io ioDrive */
+    VENDOR_MICRON_X      = 37,  /* Micron enterprise */
+    VENDOR_SOLIDIGM     = 38,  /* Solidigm (ex-Intel NAND) */
+    VENDOR_KLEVV        = 39,  /* KLEVV / Essencore */
+    VENDOR_NETAC        = 40,  /* Netac */
+    VENDOR_TEAMLITE     = 41,  /* TeamGroup T-Force */
+    VENDOR_AORUS        = 42,  /* GIGABYTE AORUS */
     VENDOR_OTHER       = 99
 } DRIVE_VENDOR;
 

@@ -1,325 +1,127 @@
 # Changelog
 
-All notable changes to **HDDHealth Monitor** are documented in this file.
-
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+History of changes for HDDHealth Monitor. Free-form, nothing fancy.
 
 ---
 
-## [1.2] - 2026-09-11
+## v1.3 — Big Update
 
-### Summary
+The biggest release so far. Three main things: way more hardware support, a bunch of new tools, and a built-in drive database.
 
-First public release shipping as a **native Visual Studio 2010 solution**.
-Compared to the original 1.1 MinGW-only distribution, this version replaces
-the experimental per-drive history graph feature with a more practical
-**Save Report** function that exports the full drive health status to a
-plain-text `.txt` file. The project file layout has also been reworked to
-build cleanly inside the classic VS2010 IDE without any external SDK
-configuration.
+### New Stuff
 
-### Removed
+**Drive Info button** (next to Save Report on the main window):
+- Looks up the selected drive in a built-in database that's baked right into the .exe (no external files)
+- Shows a dialog with general specs: trademark, model, capacity, form-factor, type, interface, SATA version, controller, firmware, firmware upgrade, ATA version, advanced format, rotation rate
+- The database (`drives.json`) is embedded as an `RT_RCDATA` resource — everything ships in one .exe
+- Maintained by the developer, end users see it read-only
+- Main window fields (Vendor, Capacity, Type) now pull from this database too, falling back to auto-detected values if the drive isn't in the database yet
 
-- **Per-drive History Graph feature** (entire subsystem).
-  - Removed files:
-    - `src/smart_history.h`
-    - `src/smart_history.cpp`
-  - Removed UI elements:
-    - "History Graph" button on the main window (`IDC_HISTORY_BTN_MAIN`)
-    - "View → History Graph" menu entry (`IDM_HISTORY`)
-  - Removed runtime calls:
-    - `History_Init()`, `History_Load()`, `History_Save()`,
-      `History_Record()`, `History_FindSlot()`, `History_Clear()`
-    - `Graph_RegisterClass()`, `Graph_ShowWindow()`, `Graph_Repaint()`,
-      `Graph_DestroyAll()`, `Graph_Paint()`
-  - Removed persistent state:
-    - The rolling 120-sample buffer kept in `%APPDATA%\HDDH\history.dat`
-      is no longer written or read. Existing `history.dat` files left
-      over from version 1.1 can be safely deleted; this version simply
-      ignores them.
+**New Tools menu:**
+- `File → Save JSON Report (Ctrl+J)` — exports reports as JSON, handy for scripts or dashboards
+- `Tools → Benchmark Drive (Ctrl+B)` — 5-second sequential read test with a live progress bar (0-100%), runs in a background thread, shows result in MB/s with one decimal place
+- `Tools → Settings` — tweak alert thresholds (temperature warning/critical, health warning/critical) and refresh interval (1-60 seconds). These actually work now — the alert system reads from these settings, and the refresh timer resets when you change the interval. Saved to `%APPDATA%\HDDH\settings.ini`
+- `Tools → System Information` — shows OS version, CPU brand string, total/available RAM, drive count
 
-  The history graph was an experimental visualization that required
-  continuous background sampling and a custom-drawn graph window. In
-  practice it added complexity without delivering enough value to most
-  users, so it has been replaced by the on-demand Save Report feature
-  below.
+**New fields on the main window:**
+- **Vendor** — from the database if available, otherwise auto-detected (Samsung, WDC, Seagate, Phison, etc.)
+- **Type** — from the database if available (HDD, SSD, etc.)
+- The old "Sec. Speed" field was replaced with **Power-On Hours** — way more useful for day-to-day monitoring. Format: `4321 hrs (0.5 yrs)`. Read speed is now in Tools → Benchmark.
+- Main window layout went from 7 rows to 9
 
-### Added
+**Way more hardware support:**
+- 22 new drive vendors: Phison, Silicon Motion, Innogrit, Realtek SSD, YMTC, Maxio, HiKsemi, Leven, Patriot, Gigabyte, ASRock, Seagate Exos, Fujitsu, Quantum, Maxtor, Fusion-io, Micron Enterprise, Solidigm, KLEVV, Netac, TeamGroup T-Force, AORUS (42 total now)
+- 20+ new USB bridge VID/PID pairs (ASMedia ASM235CM, Realtek RTL9210B/9220/9230, VIA VL716/717, JMicron JMS586, LaCie, Lenovo, OCZ, Corsair, Genesys Logic, ENE, Satechi, etc.)
+- 50+ new SMART attribute IDs for vendor-specific SSD diagnostics (Phison E12/E13/E19/E25, Innogrit IG5236, SMI SM2262/2263/2270, YMTC PC411, Maxio MAP1202, Solidigm P41/P44, Samsung PM9A3, eMMC life-time, etc.)
 
-- **Save Report feature** - exports a complete drive health snapshot to a
-  plain-text file.
+### What Changed
 
-  - Output location: `<Documents>\HDDH_Reports\HDDH_Report_YYYYMMDD_HHMMSS.txt`
-  - Naming uses the local date and time so reports never overwrite each
-    other.
-  - A success dialog offers to open the containing folder in Explorer
-    with the new report pre-selected.
-  - The report covers every detected drive and includes:
+- Main window now does a database lookup on every drive update — Vendor, Capacity, and Type all pull from the embedded JSON, falling back to auto-detected values
+- TXT and JSON reports also pull from the database, so the report data matches what you see on the main window
+- Settings dialog redesigned: group boxes for Temperature/Health/Refresh, clear labels, working OK/Cancel/Close buttons
+- Benchmark dialog has a live progress bar and the Close button only shows up after the test finishes
+- Alert system is now wired to the Settings values — temperature and health thresholds actually get used when checking for alerts
+- Refresh timer gets reset after Settings closes, and alert states get cleared so they re-evaluate with the new thresholds
+- HDDs show RPM in the Controller field of the Drive Info dialog (pulled from ATA IDENTIFY word 217)
+- JSON parser handles escape sequences (`\"`, `\\`, `\/`) so values like `2.5"` work correctly
 
-    - Drive identity (model, serial, firmware)
-    - Capacity (formatted as TB / GB / MB as appropriate)
-    - Drive type (HDD / SSD-SATA / NVMe / USB / etc.)
-    - Detected vendor (Samsung, WDC, Seagate, ...)
-    - Overall health status (Good / Caution / Bad)
-    - SMART supported / enabled flags
-    - Access method used (ATA Passthrough / SAT / Storage Query / ...)
-    - Temperature in Celsius
-    - Health % and Performance %
-    - Power-on hours and power cycle count
-    - Read speed (MB/s)
-    - Predictive failure flag
-    - USB bridge VID/PID and vendor/product strings (for USB drives)
+### What Got Removed
 
-  - The per-drive attribute table differs by transport:
+- **SMART Self-Test launcher** — gone from the menu. The underlying log-reading functions in smart.cpp are still there, just no UI to launch new tests.
+- **Multi-language system** — completely ripped out. Had a nasty bug where the string table indexing was off, causing labels and button text to be wrong. Now everything is hardcoded English — simpler and actually works.
+- **History Graph** — was already removed in v1.2, stays removed.
+- The "Controller" field on the main window was replaced with "Type" (which pulls from the database). Controller info still shows up in the Drive Info dialog and in the reports.
 
-    - **ATA / SATA**: full 30-attribute SMART table with
-      ID, name, value, worst, threshold, raw value, and status
-      (OK / Warning / FAILED).
-    - **NVMe**: the NVMe Health Log (Log Page 02h) fields, including
-      Critical Warning, Composite Temperature, Available Spare,
-      Percentage Used, Data Units Read/Written, Power On Hours,
-      Power Cycles, Unsafe Shutdowns, Media Errors, Error Log Entries,
-      and the warning/critical composite temperature times.
-    - **USB bridges without SAT**: a clear note explaining that SMART
-      attributes are not exposed by the bridge chip.
+### Build Stuff
 
-- **New menu entry**: `File → Save Report...   Ctrl+R` triggers the
-  report export.
-- **New toolbar button**: "Save Report" replaces the old "History Graph"
-  button at the same screen location.
-- **Native Visual Studio 2010 solution files**:
-  - `HDDHealth-VS2010.sln` (Format Version 11.00)
-  - `HDDHealth/HDDHealth.vcxproj` (ToolsVersion 4.0, PlatformToolset v100)
-  - `HDDHealth/HDDHealth.vcxproj.filters` (Solution Explorer grouping)
-  - `HDDHealth/HDDHealth.vcxproj.user` (local debugger settings)
-- **`README_VS2010.txt`** - comprehensive build / run / troubleshooting
-  guide for the VS2010 project.
-- **`Makefile.original`** - the original MinGW Makefile is preserved
-  for reference (not used by the VS2010 build).
-- **`CHANGELOG.md`** - this file.
+- Visual Studio 2010 (v100 toolset). Works with VS2012-2022, just change the PlatformToolset
+- `cfgmgr32.lib` is loaded dynamically via LoadLibrary (no static link needed)
+- Added `#include <stdlib.h>` to smart.cpp (MSVC v100 needs it explicitly for strtol)
+- Manifest is handled through app.rc, not the linker's embed step (avoids CVT1100 duplicate manifest)
+- `GenerateManifest=false` and `EmbedManifest=false` in the project settings
+- `drives.json` is compiled into the .exe as an `RT_RCDATA` resource — no post-build copy needed
 
-### Changed
+### New Files
 
-- **Build system switched from MinGW-only to dual MinGW + VS2010**.
-  The VS2010 build produces a binary that is functionally identical to
-  the MinGW build; the only differences are the compiler (`cl.exe` vs.
-  `g++`) and the statically-linked C runtime (`/MT` vs. `-static-libgcc`).
+- `src/tools.h` + `src/tools.cpp` — JSON export, benchmark, settings, system info
+- `src/drive_db.h` + `src/drive_db.cpp` — drive database lookup (loads from embedded resource) + display dialog
+- `src/drives.json` — the database file, embedded into the .exe via `app.rc`
 
-- **VS2010 project settings** (faithful port of the original Makefile
-  flags):
+### How to Verify
 
-  | Setting              | Value                                            |
-  | -------------------- | ------------------------------------------------ |
-  | PlatformToolset      | `v100`   (MSVC 16.0, ships with VS2010)         |
-  | CharacterSet         | Multi-Byte (matches MinGW default)             |
-  | SubSystem            | `Windows`   (GUI app, no console)               |
-  | RuntimeLibrary       | `MultiThreaded` (`/MT`, static CRT)             |
-  | ExceptionHandling    | `false`   (matches MinGW `-fno-exceptions`)     |
-  | RuntimeTypeInfo      | `false`   (no RTTI needed)                      |
-  | Optimization         | `/O2` (MaxSpeed) on Release                      |
-  | Linker Manifest       | disabled (manifest embedded via `app.rc`)        |
-  | UAC Execution Level  | `RequireAdministrator`   (per `app.manifest`)    |
-  | WINVER / _WIN32_WINNT| `0x0600`  (Vista - needed for NVMe IOCTLs)       |
-  | GenerateManifest     | `false`   (avoids CVT1100 duplicate manifest)   |
-  | EmbedManifest        | `false`   (avoids `mt.exe` step)                |
-
-- **`smart.cpp`**: added `#include <stdlib.h>` (MSVC v100 needs this
-  explicitly for `strtol`, while MinGW pulls it in transitively via
-  `<ctype.h>`).
-
-- **`smart.cpp`**: `CM_Get_Parent` / `CM_Get_Device_IDA` /
-  `CM_Get_Device_ID_Size` are now resolved at runtime via
-  `LoadLibraryA("cfgmgr32.dll")` + `GetProcAddress` instead of being
-  linked statically against `cfgmgr32.lib`. The DLL ships with every
-  Windows version since 2000, so this is always safe at runtime and
-  removes the link-time dependency on `cfgmgr32.lib` (which is not on
-  the linker search path in some VS2010 Express installs).
-
-- **Version bumped** from `1.1.0.0` to `1.2.0.0` in `src/app.rc`,
-  `src/main.cpp` (window title), and `src/mainwnd.cpp`
-  (`UpdateWindowTitle()`).
-
-### Project layout
-
-```
-HDDHealth-VS2010/
-├── CHANGELOG.md                      <-- NEW in 1.2
-├── HDDHealth-VS2010.sln              <-- NEW in 1.2
-├── LICENSE                           (unchanged)
-├── README.md                         (updated for GitHub)
-├── Makefile.original                 <-- NEW in 1.2 (renamed from "Makefile")
-└── HDDHealth/
-    ├── HDDHealth.vcxproj             <-- NEW in 1.2
-    ├── HDDHealth.vcxproj.filters     <-- NEW in 1.2
-    ├── HDDHealth.vcxproj.user        <-- NEW in 1.2
-    ├── README_VS2010.txt             <-- NEW in 1.2
-    ├── bin/                          <-- output folder (filled at build)
-    ├── obj/                          <-- intermediate folder (filled at build)
-    └── src/
-        ├── main.cpp                  (version string bumped to 1.2)
-        ├── mainwnd.cpp               (Save Report replaces History Graph)
-        ├── smart.cpp                 (stdlib.h + dynamic cfgmgr32 loader)
-        ├── donate.cpp                (unchanged)
-        ├── smart.h                   (unchanged)
-        ├── mainwnd.h                 (IDC_SAVE_REPORT_BTN replaces
-        │                              IDC_HISTORY_BTN_MAIN;
-        │                              IDM_SAVE_REPORT replaces IDM_HISTORY)
-        ├── donate.h                  (unchanged)
-        ├── mingw_compat.h            (unchanged)
-        ├── resource.h                (unchanged)
-        ├── app.rc                    (version-info block bumped to 1.2)
-        ├── app.manifest              (unchanged)
-        └── app.ico                   (unchanged)
-```
-
-### Removed files (compared to 1.1)
-
-- `src/smart_history.h`   - entire history graph subsystem removed
-- `src/smart_history.cpp` - entire history graph subsystem removed
-
-### Build requirements
-
-- Microsoft Visual Studio 2010 (any edition, including the free
-  "Visual C++ 2010 Express" edition).
-- Windows SDK 7.0A / 7.1 (bundled with VS2010).
-- Target OS at runtime: Windows Vista / 7 / 8 / 8.1 / 10 / 11.
-
-### How to build
-
-1. Unzip to a path **without spaces**
-   (e.g. `C:\Projects\HDDHealth-VS2010`).
-2. Double-click `HDDHealth-VS2010.sln` (or open it from inside VS2010).
-3. In the toolbar, pick `Release` and `Win32`.
-4. Press `F7` (Build Solution).
-5. Output: `HDDHealth-VS2010\bin\HDDHealth.exe`.
-
-Command-line alternative (VS2010 Command Prompt):
-
-```cmd
-cd C:\Projects\HDDHealth-VS2010
-msbuild HDDHealth-VS2010.sln /p:Configuration=Release /p:Platform=Win32
-```
-
-### Migrating to a newer Visual Studio
-
-If you do not have VS2010 installed but have VS2012 / 2013 / 2015 / 2017 /
-2019 / 2022, open `HDDHealth.vcxproj` in a text editor and replace every
-occurrence of `<PlatformToolset>v100</PlatformToolset>` with the matching
-toolset identifier for your VS version:
-
-| Visual Studio | PlatformToolset |
-| ------------- | ---------------- |
-| 2012          | `v110`           |
-| 2013          | `v120`           |
-| 2015          | `v140`           |
-| 2017          | `v141`           |
-| 2019          | `v142`           |
-| 2022          | `v143`           |
-
-All other project settings are forward-compatible with newer toolsets.
-
-### Sample report output
-
-```
-================================================================
-  HDDHealth Monitor - Drive Health Report
-  Generated: 2026-09-11 14:23:08
-  Author : Ari Sohandri Putra (ARImetic Inc.)
-  Sponsor: https://github.com/sponsors/arisohandriputra/
-  License: MIT (100% Free Open Source Software)
-================================================================
-
-Drives detected: 2
-
-----------------------------------------------------------------
-DRIVE 1 of 2
-----------------------------------------------------------------
-Model           : Samsung SSD 980 PRO 2TB
-Serial Number   : S5GXNX0R123456W
-Firmware        : 5B2QGXA7
-Capacity        : 1.9 TB
-Type            : NVMe
-Vendor          : Samsung
-Health Status   : Good
-SMART Supported : Yes
-SMART Enabled   : Yes
-Access Method   : NVMe Protocol Query
-Temperature     : 42 C
-Health %        : 98
-Performance %   : 100
-Power-On Hours  : 4321
-Power Cycles    : 187
-Read Speed      : 6800 MB/s
-Predict Failure : No
-
----- SMART Attributes / Health Log ----
-
-  01h  Critical Warning            : 0x00
-  02h  Composite Temperature       : 42 C (315 K)
-  03h  Available Spare             : 100 %
-  04h  Available Spare Threshold    : 10 %
-  05h  Percentage Used (Endurance) : 2 %
-  06h  Data Units Read              : 12345678 (6028.1 GB)
-  07h  Data Units Written           : 9876543 (4822.5 GB)
-  09h  Power On Hours               : 4321
-  0Ch  Power Cycles                 : 187
-  10h  Unsafe Shutdowns             : 3
-  11h  Media & Data Integrity Errors: 0
-  12h  Error Log Entries            : 0
-  13h  Warning Comp Temp Time       : 0 min
-  14h  Critical Comp Temp Time      : 0 min
-
-================================================================
-  End of Report
-================================================================
-```
+After building, check:
+- Window title says `HDDHealth Monitor 1.3`
+- Menu bar has File, Tools, Help
+- Main window has 9 info rows, with Vendor and Type pulling from the database
+- The "Drive Info" button (next to Save Report) opens a dialog with 13 fields of general info
+- Pick a mechanical HDD → Drive Info should show rotation rate if it's in the database
+- `Tools → Settings` → dialog has group boxes, clear labels, OK/Cancel/Close all work
+- Change alert thresholds in Settings → tray notifications use the new values
+- Change refresh interval in Settings → timer picks up the new interval immediately
+- `Tools → Benchmark` → progress bar runs for 5 seconds, then shows MB/s
+- `File → Save Report` and `File → Save JSON Report` → data matches the main window
+- `File → Save JSON Report` → `.json` file shows up in `Documents\HDDH_Reports\`
 
 ---
 
-## [1.1] - 2026 (original release)
+## v1.2 — Save Report + VS2010 Solution
 
-### Summary
+Replaced the History Graph (which was experimental) with a more practical Save Report feature. Added a native VS2010 solution so it builds cleanly in the IDE.
 
-Initial public release of HDDHealth Monitor. Source distributed with a
-MinGW / TDM-GCC Makefile (no Visual Studio project files).
+### What's New
+
+- **Save Report** — exports a report to `.txt` in `Documents\HDDH_Reports\`. Covers every drive: model, serial, firmware, capacity, SMART status, NVMe Health Log fields, or ATA attribute table.
+- **Native VS2010 solution** — `.sln`, `.vcxproj`, `.vcxproj.filters`, `.vcxproj.user`
+- **README_VS2010.txt** — build/run/troubleshoot guide
+- **Makefile.original** — original MinGW Makefile kept for reference
+
+### What Changed
+
+- Build system: dual MinGW + VS2010 support
+- `smart.cpp` got `#include <stdlib.h>` (MSVC v100 needs it for strtol)
+- `smart.cpp` loads `cfgmgr32.dll` dynamically (avoids LNK1104 on VS2010 Express)
+- VS2010 project: `GenerateManifest=false`, `EmbedManifest=false`, dropped `cfgmgr32.lib` from dependencies
+- Version bumped 1.1 → 1.2
+
+### What Got Removed
+
+- **History Graph subsystem** (smart_history.h + smart_history.cpp) — the window, button, menu entry, all of it. The `history.dat` file in `%APPDATA%\HDDH\` is no longer read, safe to delete.
+
+---
+
+## v1.1 — Initial Release
+
+First release. MinGW-only, no VS2010 project files.
 
 ### Features
 
-- Per-drive health percentage and performance metric.
-- Full S.M.A.R.T. attribute table (ID, value, worst, raw, status).
-- Temperature / health / failure critical alerts via tray notifications.
-- Hot-plug aware (USB drives detected on arrival).
-- Per-drive history graph (health % and individual attribute over time).
-- Save-screenshot feature (PNG via GDI+).
-- Multi-drive tray icons.
-- ATA / SATA drives via `IOCTL_ATA_PASS_THROUGH_DIRECT`.
-- USB bridge chips (JMicron, ASMedia, Realtek, Cypress, ...) via
-  `IOCTL_SCSI_PASS_THROUGH_DIRECT` using SAT (SCSI-ATA-Translation).
-- NVMe drives via `IOCTL_STORAGE_QUERY_PROPERTY` on the native Microsoft
-  NVMe driver (reads Health Info Log 0x02).
-
-### Build
-
-Original release was MinGW-only:
-
-```bash
-# Native Windows build (in a MinGW / MSYS2 shell)
-make
-
-# Native Windows build (in TDM-GCC)
-mingw32-make
-```
-
----
-
-## Versioning roadmap
-
-- **1.x** - Win32 native C++ GUI, single-instance, GDI+ screenshots, hot-plug
-  awareness, multi-transport S.M.A.R.T. (ATA / USB-SAT / NVMe), and the
-  new Save Report feature introduced in 1.2.
-- **Future** - Possible additions being considered: NVMe self-test log
-  decoding, RAID controller support (Intel RST / AMD RAIDXpert via
-  `SRB_IO_CONTROL`), localized UI strings, optional command-line /
-  PowerShell exit codes for scripted monitoring, scheduled automatic
-  report generation.
+- Health % and performance metric per drive
+- Full S.M.A.R.T. attribute table (ID, value, worst, raw, status)
+- Tray notifications for temperature/health/failure alerts
+- Hot-plug aware (USB drives detected on plug-in)
+- Per-drive history graph (experimental, removed in v1.2)
+- Save screenshot as PNG via GDI+
+- Multi-drive tray icons
+- ATA/SATA via IOCTL_ATA_PASS_THROUGH_DIRECT
+- USB via IOCTL_SCSI_PASS_THROUGH_DIRECT (SAT)
+- NVMe via IOCTL_STORAGE_QUERY_PROPERTY (Health Log 0x02)

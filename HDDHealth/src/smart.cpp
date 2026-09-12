@@ -1,31 +1,19 @@
 /* ============================================================================
- *  HDDHealth Monitor - S.M.A.R.T. data acquisition core
- *  ---------------------------------------------------------------------------
- *  100% Free and Open Source Software (FOSS).
+ *  HDDHealth Monitor 1.3 - S.M.A.R.T. data acquisition (the low-level stuff)
  *
  *  Author  : Ari Sohandri Putra
- *  Company : ARImetic Inc.
  *  Sponsor : https://github.com/sponsors/arisohandriputra/
  *  License : MIT
  *
- *  This translation unit contains the low-level drive enumeration and
- *  S.M.A.R.T. attribute parsing logic.  It supports three transport
- *  families:
- *    1. ATA / SATA  - via IOCTL_ATA_PASS_THROUGH_DIRECT (IDENTIFY,
- *                     SMART_READ_DATA, SMART_READ_THRESHOLDS).
- *    2. USB bridge  - via IOCTL_SCSI_PASS_THROUGH_DIRECT using the
- *                     SAT (SCSI-ATA-Translation) protocol; tested with
- *                     JMicron, ASMedia, Realtek and Cypress bridges.
- *    3. NVMe        - via IOCTL_STORAGE_QUERY_PROPERTY on the native
- *                     Microsoft NVMe driver; reads Health Info Log 0x02
- *                     and translates the key SMART-equivalent fields.
+ *  Talks directly to physical drives via DeviceIoControl. Supports three
+ *  transport families:
+ *    1. ATA/SATA  - IOCTL_ATA_PASS_THROUGH_DIRECT
+ *    2. USB       - IOCTL_SCSI_PASS_THROUGH_DIRECT (SAT, for bridge chips)
+ *    3. NVMe      - IOCTL_STORAGE_QUERY_PROPERTY (reads Health Log 0x02)
  *
- *  The public entry point is ScanDrives() which fills a caller-allocated
- *  DRIVE_INFO[] array with model, serial, firmware, size, temperature,
- *  health %, performance metrics, and the normalized attribute table.
+ *  Entry point is ScanDrives() which fills a DRIVE_INFO[] array.
  * ============================================================================
  */
-
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include <winioctl.h>
@@ -406,6 +394,104 @@ const ATTR_NAME g_AttrNames[] = {
     /* ---- ADATA specific ---- */
     { 0xAD, "Average Erase Count (ADATA)",       ATTR_CRIT_NONE,      INTERP_COUNTER32    },
 
+    /* ---- New vendor-specific attributes added in v1.3 ---- */
+
+    /* SSD additional attributes (Kingston/Sandisk/Phison) */
+    { 0xAE, "Unexpected Power Loss Count (Newer SSD)", ATTR_CRIT_NONE,    INTERP_COUNTER32 },
+    { 0xC5, "SSD Life Left (Alt)",             ATTR_CRIT_ADVISORY,  INTERP_LIFE_PCT    },
+    { 0xD5, "Nominal Media Integrity",          ATTR_CRIT_NONE,      INTERP_NORMAL      },
+    { 0xD6, "Percentage of NVMedia used",       ATTR_CRIT_ADVISORY,  INTERP_LIFE_PCT    },
+    { 0xD7, "SATA PHY Error (Alt)",            ATTR_CRIT_NONE,      INTERP_COUNTER32    },
+    { 0xD8, "SSD Endurance Indicator",         ATTR_CRIT_ADVISORY,  INTERP_LIFE_PCT    },
+    { 0xD9, "Total Bad Block Count",           ATTR_CRIT_CRITICAL,  INTERP_COUNTER32   },
+    { 0xDA, "Bad Block Count (Per Die)",       ATTR_CRIT_ADVISORY,  INTERP_COUNTER32   },
+    { 0xDB, "Erase Fail Count (Chip)",         ATTR_CRIT_CRITICAL,  INTERP_COUNTER32   },
+
+    /* Plextor / Phison specific */
+    { 0xB6, "Plextor/Phison Total Bad Block",  ATTR_CRIT_CRITICAL,  INTERP_COUNTER32   },
+    { 0xC0, "Plextor Power-Off Retract",       ATTR_CRIT_NONE,      INTERP_COUNTER32    },
+
+    /* WDC Ultrastar / HGST helium drives */
+    { 0x22, "Helium Pressure (HGST)",          ATTR_CRIT_ADVISORY,  INTERP_NORMAL      },
+    { 0x23, "Helium Pressure (WDC Ultrastar)", ATTR_CRIT_ADVISORY,  INTERP_NORMAL      },
+    { 0x24, "Helium Pressure (WDC He12)",      ATTR_CRIT_ADVISORY,  INTERP_NORMAL      },
+
+    /* Seagate extra attributes */
+    { 0x24, "Seagate Factory Bad Sector Count",ATTR_CRIT_NONE,      INTERP_COUNTER32    },
+    { 0x25, "Seagate Reallocated Sectors",     ATTR_CRIT_CRITICAL,  INTERP_COUNTER32   },
+    { 0x26, "Seagate Format Command Fail",     ATTR_CRIT_NONE,      INTERP_COUNTER32    },
+    { 0x27, "Seagate G-List Size",             ATTR_CRIT_NONE,      INTERP_COUNTER32    },
+    { 0x28, "Seagate P-List Size",             ATTR_CRIT_NONE,      INTERP_COUNTER32    },
+
+    /* Crucial/Micron extended SSD attributes */
+    { 0xA7, "SSD Endurance Remaining (Crucial)",ATTR_CRIT_ADVISORY, INTERP_LIFE_PCT    },
+    { 0xAF, "Program Fail Count (Crucial)",    ATTR_CRIT_CRITICAL,  INTERP_COUNTER32   },
+
+    /* Samsung enterprise NVMe PM9A3 specific (visible through SMART passthrough) */
+    { 0xB0, "Samsung Wear Range",              ATTR_CRIT_ADVISORY,  INTERP_COUNTER32   },
+    { 0xB1, "Samsung Wear Leveling",           ATTR_CRIT_NONE,      INTERP_COUNTER32    },
+
+    /* M.2 SATA drives (common attributes) */
+    { 0xC1, "M.2 SATA Load/Unload Cycle",     ATTR_CRIT_NONE,      INTERP_COUNTER32   },
+
+    /* SK Hynix extended */
+    { 0xBE, "SK Hynix NAND Temp",              ATTR_CRIT_NONE,      INTERP_TEMPERATURE  },
+    { 0xC3, "SK Hynix Recovery Count",        ATTR_CRIT_NONE,      INTERP_COUNTER32    },
+
+    /* Solidigm / ex-Intel extended */
+    { 0xE1, "Solidigm Total LBAs Written",    ATTR_CRIT_NONE,      INTERP_COUNTER48   },
+    { 0xE2, "Solidigm Host Writes",           ATTR_CRIT_NONE,      INTERP_COUNTER32   },
+    { 0xE3, "Solidigm Media Wear",            ATTR_CRIT_ADVISORY,  INTERP_NORMAL      },
+    { 0xE4, "Solidigm Average Erase Count",    ATTR_CRIT_NONE,      INTERP_COUNTER32   },
+    { 0xE5, "Solidigm Power Loss Protection", ATTR_CRIT_CRITICAL,  INTERP_NORMAL      },
+
+    /* Phison E12/E13/E19/E25 specific */
+    { 0xE7, "Phison SSD Life Left",           ATTR_CRIT_ADVISORY,  INTERP_LIFE_PCT    },
+    { 0xE8, "Phison Reserved Space",          ATTR_CRIT_ADVISORY,  INTERP_NORMAL      },
+    { 0xE9, "Phison NAND Writes (GiB)",       ATTR_CRIT_NONE,      INTERP_COUNTER32   },
+    { 0xEA, "Phison Host Writes (GiB)",       ATTR_CRIT_NONE,      INTERP_COUNTER32   },
+    { 0xEB, "Phison Program Fail Count",      ATTR_CRIT_CRITICAL,  INTERP_COUNTER32   },
+    { 0xEC, "Phison Erase Fail Count",        ATTR_CRIT_CRITICAL,  INTERP_COUNTER32   },
+    { 0xED, "Phison Wear Leveling",           ATTR_CRIT_NONE,      INTERP_COUNTER32   },
+    { 0xEE, "Phison Power Loss Protection",   ATTR_CRIT_CRITICAL,  INTERP_COUNTER32   },
+    { 0xEF, "Phison Bad Block Count",         ATTR_CRIT_ADVISORY,  INTERP_COUNTER32   },
+    { 0xF0, "Phison Reallocation Sector",     ATTR_CRIT_CRITICAL,  INTERP_COUNTER32   },
+    { 0xF1, "Phison Total LBAs Written",      ATTR_CRIT_NONE,      INTERP_COUNTER48   },
+    { 0xF2, "Phison Total LBAs Read",         ATTR_CRIT_NONE,      INTERP_COUNTER48   },
+
+    /* Innogrit IG5236/IG5239 specific */
+    { 0xD0, "Innogrit Erase Count",           ATTR_CRIT_NONE,      INTERP_COUNTER32   },
+    { 0xD1, "Innogrit Bad Block Count",       ATTR_CRIT_CRITICAL,  INTERP_COUNTER32   },
+    { 0xD2, "Innogrit Media Wear",            ATTR_CRIT_ADVISORY,  INTERP_NORMAL      },
+
+    /* Silicon Motion (SMI) SM2262/SM2263/SM2270 specific */
+    { 0xAB, "SMI Program Fail Count",          ATTR_CRIT_CRITICAL,  INTERP_COUNTER32   },
+    { 0xAC, "SMI Erase Fail Count",            ATTR_CRIT_CRITICAL,  INTERP_COUNTER32   },
+    { 0xAD, "SMI Wear Leveling Count",        ATTR_CRIT_NONE,      INTERP_COUNTER32   },
+    { 0xAE, "SMI Unexpected Power Loss",      ATTR_CRIT_NONE,      INTERP_COUNTER32   },
+    { 0xC1, "SMI Total LBAs Written",         ATTR_CRIT_NONE,      INTERP_COUNTER48   },
+    { 0xC2, "SMI Total LBAs Read",            ATTR_CRIT_NONE,      INTERP_COUNTER48   },
+
+    /* YMTC (Yangtze Memory) PC411/PC005 specific */
+    { 0xCF, "YMTC Reserved Space",            ATTR_CRIT_ADVISORY,  INTERP_NORMAL      },
+    { 0xD2, "YMTC NAND Writes",               ATTR_CRIT_NONE,      INTERP_COUNTER48   },
+    { 0xD3, "YMTC Host Writes",               ATTR_CRIT_NONE,      INTERP_COUNTER32   },
+    { 0xD4, "YMTC Erase Count",               ATTR_CRIT_NONE,      INTERP_COUNTER32   },
+
+    /* Maxio MAP1202/MAP1602 specific */
+    { 0xD9, "Maxio Bad Block Count",          ATTR_CRIT_CRITICAL,  INTERP_COUNTER32   },
+    { 0xDA, "Maxio Wear Leveling",            ATTR_CRIT_NONE,      INTERP_COUNTER32   },
+    { 0xDB, "Maxio Power Loss Protection",    ATTR_CRIT_CRITICAL,  INTERP_COUNTER32   },
+
+    /* Realtek RTL9210 (USB-NVMe) specific */
+    { 0xC0, "Realtek Power Loss",             ATTR_CRIT_NONE,      INTERP_COUNTER32   },
+    { 0xC1, "Realtek Wear Leveling",          ATTR_CRIT_NONE,      INTERP_COUNTER32   },
+
+    /* eMMC / SD card specific attributes (rare) */
+    { 0xB1, "eMMC Life Time Estimation A",    ATTR_CRIT_ADVISORY,  INTERP_LIFE_PCT    },
+    { 0xB2, "eMMC Life Time Estimation B",    ATTR_CRIT_ADVISORY,  INTERP_LIFE_PCT    },
+    { 0xB3, "eMMC Pre EOL Info",              ATTR_CRIT_ADVISORY,  INTERP_NORMAL      },
+
     /* Terminator */
     { 0x00, NULL,                                ATTR_CRIT_NONE,      INTERP_NORMAL       }
 };
@@ -508,6 +594,29 @@ const char* GetVendorName(DRIVE_VENDOR eVendor)
     case VENDOR_GOODRAM:       return "GOODRAM";
     case VENDOR_PLEXTOR:       return "Plextor";
     case VENDOR_OCZ:           return "OCZ";
+    /* New vendors added in v1.3 */
+    case VENDOR_PHISON:        return "Phison";
+    case VENDOR_SILICONMOTION: return "Silicon Motion";
+    case VENDOR_INNOGRIT:      return "Innogrit";
+    case VENDOR_REALTEK_SSD:   return "Realtek";
+    case VENDOR_YMTC:          return "YMTC";
+    case VENDOR_MAXIOTECH:    return "Maxio";
+    case VENDOR_HIKSEMI:       return "HiKsemi";
+    case VENDOR_LEVEN:         return "Leven";
+    case VENDOR_PATRIOT:       return "Patriot";
+    case VENDOR_GIGABYTE:      return "Gigabyte";
+    case VENDOR_ASROCK:        return "ASRock";
+    case VENDOR_SEAGATE_EXOS:  return "Seagate Exos";
+    case VENDOR_FUJITSU:       return "Fujitsu";
+    case VENDOR_QUANTUM:       return "Quantum";
+    case VENDOR_MAXTOR:        return "Maxtor";
+    case VENDOR_FUSIONIO:     return "Fusion-io";
+    case VENDOR_MICRON_X:     return "Micron Enterprise";
+    case VENDOR_SOLIDIGM:      return "Solidigm";
+    case VENDOR_KLEVV:         return "KLEVV";
+    case VENDOR_NETAC:         return "Netac";
+    case VENDOR_TEAMLITE:      return "TeamGroup T-Force";
+    case VENDOR_AORUS:         return "AORUS";
     case VENDOR_OTHER:         return "Other";
     default:                   return "Unknown";
     }
@@ -626,6 +735,109 @@ DRIVE_VENDOR DetectDriveVendor(const char* szModel)
     if (strstr(szUpper, "OCZ") || strstr(szUpper, "VERTEX") ||
         strstr(szUpper, "AGILITY"))
         return VENDOR_OCZ;
+
+    /* ---- New vendor patterns added in v1.3 ---- */
+
+    /* Phison - common in many OEM SSDs (Corsair MP510, Sabrent, Inland) */
+    if (strstr(szUpper, "PHISON") || strstr(szUpper, "PS3") ||
+        strstr(szUpper, "PS5") || strstr(szUpper, "PS7") ||
+        strstr(szUpper, "E12") || strstr(szUpper, "E13") ||
+        strstr(szUpper, "E19") || strstr(szUpper, "E21") ||
+        strstr(szUpper, "E25") || strstr(szUpper, "E26"))
+        return VENDOR_PHISON;
+
+    /* Silicon Motion (SMI) - very common USB bridge + SSD controller */
+    if (strstr(szUpper, "SILICONMOTION") || strstr(szUpper, "SILICON MOTION") ||
+        strstr(szUpper, "SM22") || strstr(szUpper, "SM23") ||
+        strstr(szUpper, "SM26") || strstr(szUpper, "SM27") ||
+        strstr(szUpper, "SMP22") || strstr(szUpper, "SM2P"))
+        return VENDOR_SILICONMOTION;
+
+    /* Innogrit - IG5236, IG5239, etc. (Sabrent Rocket 4 Plus, Corsair MP600 PRO) */
+    if (strstr(szUpper, "INNOGRIT") || strstr(szUpper, "IG5") ||
+        strstr(szUpper, "IG4") || strstr(szUpper, "RAINIER") ||
+        strstr(szUpper, "SEATTLE"))
+        return VENDOR_INNOGRIT;
+
+    /* Realtek SSD controllers (RTL9210, RTL9220) - common in USB enclosures */
+    if (strstr(szUpper, "REALTEK") || strstr(szUpper, "RTL9"))
+        return VENDOR_REALTEK_SSD;
+
+    /* YMTC (Yangtze Memory Technologies) - PC411, PC005, etc. */
+    if (strstr(szUpper, "YMTC") || strstr(szUpper, "PC4") ||
+        strstr(szUpper, "PC3") || strstr(szUpper, "EC4"))
+        return VENDOR_YMTC;
+
+    /* Maxio Technology (MAP1202, MAP1602) - entry-level NVMe controllers */
+    if (strstr(szUpper, "MAXIO") || strstr(szUpper, "MAP1") ||
+        strstr(szUpper, "MAP2"))
+        return VENDOR_MAXIOTECH;
+
+    /* HiKsemi / HIKOKI storage */
+    if (strstr(szUpper, "HIKSEMI") || strstr(szUpper, "HIKOKI") ||
+        strstr(szUpper, "HDK"))
+        return VENDOR_HIKSEMI;
+
+    /* Leven / Jetram (budget memory modules) */
+    if (strstr(szUpper, "LEVEN") || strstr(szUpper, "JETRAM"))
+        return VENDOR_LEVEN;
+
+    /* Patriot Memory (Viper, Burst, Scorch) */
+    if (strstr(szUpper, "PATRIOT") || strstr(szUpper, "VIPER") ||
+        strstr(szUpper, "SCORCH") || strstr(szUpper, "BURST"))
+        return VENDOR_PATRIOT;
+
+    /* Gigabyte AORUS / Gigabyte SSDs */
+    if (strstr(szUpper, "GIGABYTE") || strstr(szUpper, "AORUS"))
+        return VENDOR_GIGABYTE;
+
+    /* ASRock Phantom Gaming SSDs */
+    if (strstr(szUpper, "ASROCK") || strstr(szUpper, "PHANTOM"))
+        return VENDOR_ASROCK;
+
+    /* Seagate Exos (enterprise) - X20, X22 series */
+    if (strstr(szUpper, "EXOS") || strstr(szUpper, "ST4000NM") ||
+        strstr(szUpper, "ST8000NM") || strstr(szUpper, "ST16000NM"))
+        return VENDOR_SEAGATE_EXOS;
+
+    /* Legacy Fujitsu HDDs */
+    if (strstr(szUpper, "FUJITSU") || strstr(szUpper, "MHX") ||
+        strstr(szUpper, "MJA") || strstr(szUpper, "MHY"))
+        return VENDOR_FUJITSU;
+
+    /* Legacy Quantum HDDs (Fireball, Bigfoot) */
+    if (strstr(szUpper, "QUANTUM") || strstr(szUpper, "FIREBALL") ||
+        strstr(szUpper, "BIGFOOT"))
+        return VENDOR_QUANTUM;
+
+    /* Legacy Maxtor HDDs (DiamondMax) */
+    if (strstr(szUpper, "MAXTOR") || strstr(szUpper, "DIAMONDMAX"))
+        return VENDOR_MAXTOR;
+
+    /* Fusion-io ioDrive (PCIe flash) */
+    if (strstr(szUpper, "FUSION-IO") || strstr(szUpper, "FUSIONIO") ||
+        strstr(szUpper, "IODRIVE") || strstr(szUpper, "IOXP"))
+        return VENDOR_FUSIONIO;
+
+    /* Micron enterprise (7450, 7300, 9400 series) */
+    if (strstr(szUpper, "MTFDD") || strstr(szUpper, "7450") ||
+        strstr(szUpper, "7300") || strstr(szUpper, "9400") ||
+        strstr(szUpper, "MICRON ENTERPRISE"))
+        return VENDOR_MICRON_X;
+
+    /* Solidigm (ex-Intel NAND business) - P44 Pro, P41 Plus */
+    if (strstr(szUpper, "SOLIDIGM") || strstr(szUpper, "P44") ||
+        strstr(szUpper, "P41") || strstr(szUpper, "SOLID"))
+        return VENDOR_SOLIDIGM;
+
+    /* KLEVV (Essencore) - CRAS, BOLT, URANUS */
+    if (strstr(szUpper, "KLEVV") || strstr(szUpper, "CRAS") ||
+        strstr(szUpper, "BOLT") || strstr(szUpper, "URANUS"))
+        return VENDOR_KLEVV;
+
+    /* Netac storage */
+    if (strstr(szUpper, "NETAC"))
+        return VENDOR_NETAC;
 
     /* If model has SSD keyword but vendor unknown */
     if (strstr(szUpper, "SSD") || strstr(szUpper, "NVME"))
@@ -983,7 +1195,7 @@ BOOL GetBridgeIdentity(HANDLE hDrive, DRIVE_INFO* pInfo)
  * ============================================================ */
 
 /* -----------------------------------------------------------------
- *  Dynamic cfgmgr32 loader  (added in v1.3)
+ *  Dynamic cfgmgr32 loader 
  *
  *  Originally this module called CM_Get_Parent / CM_Get_Device_IDA /
  *  CM_Get_Device_ID_Size directly, which pulled cfgmgr32.lib into
@@ -2820,8 +3032,6 @@ int CalculatePerformance(DRIVE_INFO* pInfo)
         return -1;
 
     int i, j;
-
-
     int nCRCPerf = 100;
     for (i = 0; i < 30; i++) {
         SMART_ATTRIBUTE* pAttr = &pInfo->attrData.stAttributes[i];
@@ -2832,16 +3042,12 @@ int CalculatePerformance(DRIVE_INFO* pInfo)
         else                   nCRCPerf = 50;
         break;
     }
-
-
     if (pInfo->bIsNVMe || pInfo->eType == DRIVE_TYPE_SSD_SATA || pInfo->eType == DRIVE_TYPE_M2_SATA) {
         int nPerf = (nCRCPerf * 25 + 100 * 75) / 100;
         if (nPerf < 0)   nPerf = 0;
         if (nPerf > 100) nPerf = 100;
         return nPerf;
     }
-
-
     static const BYTE sPerfIDs[] = { 0x07, 0x08, 0x02, 0x00 };
     int nPerfSum = 0, nPerfCount = 0;
     for (i = 0; sPerfIDs[i] != 0; i++) {
@@ -2878,16 +3084,12 @@ int CalculatePerformance(DRIVE_INFO* pInfo)
     }
 
     int nSmartPerf = (nPerfCount > 0) ? (nPerfSum / nPerfCount) : 100;
-
-
     int nDMAPerf = 100;
 
     if (nCRCPerf <= 50)
         nDMAPerf = 60;
     else if (nCRCPerf <= 75)
         nDMAPerf = 80;
-
-
     int nPerf = (nSmartPerf * 25 + nDMAPerf * 50 + nCRCPerf * 25) / 100;
     if (nPerf < 0)   nPerf = 0;
     if (nPerf > 100) nPerf = 100;
@@ -3282,6 +3484,76 @@ USB_BRIDGE_TYPE DetectUsbBridgeType(HANDLE hDrive, DRIVE_INFO* pInfo)
             return USB_BRIDGE_NVME_FMA;
         return USB_BRIDGE_NVME_REALTEK;
     }
+
+    /* ---- New bridge vendors added in v1.3 ---- */
+
+    /* ASMedia ASM235CM / ASM235CMS - common in NVMe USB enclosures */
+    if (vid == 0x174C && (pid == 0x2355 || pid == 0x2356 || pid == 0x2357 ||
+                           pid == 0x2255 || pid == 0x2256))
+        return USB_BRIDGE_NVME_ASMEDIA;
+
+    /* Realtek RTL9210B / RTL9220 (newer revisions) */
+    if (vid == 0x0BDA && (pid == 0x9210 || pid == 0x9221 || pid == 0x9230))
+        return USB_BRIDGE_NVME_REALTEK;
+
+    /* VIA Labs VL716 / VL717 / VL770 (newer NVMe bridges) */
+    if (vid == 0x2109 && (pid == 0x0700 || pid == 0x0701 || pid == 0x0716 ||
+                          pid == 0x0717 || pid == 0x0718))
+        return USB_BRIDGE_NVME_VLI;
+
+    /* JMicron JMS586 (newer revisions) - NVMe */
+    if (vid == 0x152D && (pid == 0x0586 || pid == 0x0587 || pid == 0x0588 ||
+                          pid == 0x0589 || pid == 0x058A || pid == 0x0590))
+        return USB_BRIDGE_NVME_JMICRON;
+
+    /* JMicron JMS567 / JMS578 - SATA bridges (newer revisions) */
+    if (vid == 0x152D && (pid == 0x0578 || pid == 0x0579 || pid == 0x057A ||
+                          pid == 0x057B || pid == 0x057C || pid == 0x057D ||
+                          pid == 0x057E || pid == 0x0580))
+        return USB_BRIDGE_JMICRON;
+
+    /* LaCie / Seagate bridges */
+    if (vid == 0x059F) return USB_BRIDGE_SAT;
+
+    /* Lenovo / IBM bridges (often rebranded JMicron) */
+    if (vid == 0x17EF) return USB_BRIDGE_SAT;
+
+    /* Toshiba / TDK bridges */
+    if (vid == 0x0930) return USB_BRIDGE_SAT;
+
+    /* OCZ Technology USB bridges */
+    if (vid == 0x2537) return USB_BRIDGE_SAT;
+
+    /* Corsair USB bridges (often JMicron inside) */
+    if (vid == 0x1B1C) return USB_BRIDGE_SAT;
+
+    /* Generic SCSI bridge chips - try standard SAT */
+    /* Vendor ID 0x04E8 = Samsung (often Seagate inside) */
+    if (vid == 0x04E8 && pid != 0x5100) return USB_BRIDGE_SAT;
+
+    /* Vendor ID 0x05DC = LG Electronics */
+    if (vid == 0x05DC) return USB_BRIDGE_SAT;
+
+    /* Vendor ID 0x05E3 = Genesys Logic (GL819, GL822 - common USB bridges) */
+    if (vid == 0x05E3) return USB_BRIDGE_SAT;
+
+    /* Vendor ID 0x0672 = ENE Technology */
+    if (vid == 0x0672) return USB_BRIDGE_SAT;
+
+    /* Vendor ID 0x090C = Silicon Motion USB bridges */
+    if (vid == 0x090C) return USB_BRIDGE_SAT;
+
+    /* Vendor ID 0x0DCD = Wendal Electronics */
+    if (vid == 0x0DCD) return USB_BRIDGE_SAT;
+
+    /* Vendor ID 0x1480 = Generic NVMe (sometimes Realtek inside) */
+    if (vid == 0x1480) return USB_BRIDGE_NVME_REALTEK;
+
+    /* Vendor ID 0x18A5 = Satechi (often Realtek inside) */
+    if (vid == 0x18A5) return USB_BRIDGE_NVME_REALTEK;
+
+    /* Vendor ID 0x1CFA = Phison USB NVMe bridges */
+    if (vid == 0x1CFA) return USB_BRIDGE_NVME_JMICRON;
 
     /* Default: try standard SAT */
     return USB_BRIDGE_SAT;

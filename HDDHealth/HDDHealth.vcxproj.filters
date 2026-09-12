@@ -27,6 +27,12 @@
     <ClCompile Include="src\donate.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="src\tools.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\drive_db.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\mainwnd.h">
@@ -44,6 +50,12 @@
     <ClInclude Include="src\resource.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="src\tools.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\drive_db.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="src\app.rc">
@@ -55,6 +67,9 @@
       <Filter>Resource Files</Filter>
     </None>
     <None Include="src\app.ico">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="src\drives.json">
       <Filter>Resource Files</Filter>
     </None>
     <None Include="README_VS2010.txt" />

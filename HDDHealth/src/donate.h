@@ -1,15 +1,13 @@
 /* ============================================================================
- *  HDDHealth Monitor - Donate module header
- *  ---------------------------------------------------------------------------
- *  This project is 100% Free and Open Source Software (FOSS).
+ *  HDDHealth Monitor 1.3 - Donate module header
  *
  *  Author  : Ari Sohandri Putra
- *  Company : ARImetic Inc.
  *  Sponsor : https://github.com/sponsors/arisohandriputra/
- *  License : MIT (see LICENSE file in the project root)
+ *  License : MIT
+ *
+ *  The Donate UI just opens the GitHub Sponsors page. That's it.
  * ============================================================================
  */
-
 #pragma once
 #ifndef DONATE_H
 #define DONATE_H
@@ -29,7 +27,7 @@
    every UI surface (About dialog, donate dialog, manifest, version
    info) stays perfectly consistent. */
 #define DONATE_AUTHOR   "Ari Sohandri Putra"
-#define DONATE_COMPANY  "ARImetic Inc."
+#define DONATE_COMPANY  "Ari Sohandri Putra"
 #define DONATE_PRODUCT  "HDDHealth Monitor"
 
 /* Dialog control identifiers - intentionally scoped to the donate

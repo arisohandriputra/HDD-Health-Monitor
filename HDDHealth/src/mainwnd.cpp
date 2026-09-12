@@ -1,26 +1,15 @@
 /* ============================================================================
- *  HDDHealth Monitor - Main window implementation
- *  ---------------------------------------------------------------------------
- *  100% Free and Open Source Software (FOSS).
+ *  HDDHealth Monitor 1.3 - Main window + all the UI logic
  *
  *  Author  : Ari Sohandri Putra
- *  Company : ARImetic Inc.
  *  Sponsor : https://github.com/sponsors/arisohandriputra/
  *  License : MIT
  *
- *  This translation unit implements the entire main-window experience:
- *    - Drive-selection buttons (custom owner-drawn buttons)
- *    - Health / Performance custom progress bars
- *    - S.M.A.R.T. attribute list view
- *    - Tray icon management with per-drive sub-icons
- *    - Device arrival / removal (hot-plug) handling
- *    - Temperature / health / failure critical alerts
- *    - About dialog
- *    - Save-screenshot feature (PNG via GDI+)
- *
+ *  This is where the magic happens: drive buttons, health/perf bars,
+ *  SMART attribute list, tray icons, hot-plug, alerts, about dialog,
+ *  screenshot save (GDI+), and the TXT report writer.
  * ============================================================================
  */
-
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include <commctrl.h>
@@ -44,7 +33,9 @@ using namespace Gdiplus;
 
 #include "mainwnd.h"
 #include "smart.h"
-#include "donate.h"    
+#include "donate.h"
+#include "tools.h"
+#include "drive_db.h"
 
 static unsigned __int64 NVMeRead128Lo(const BYTE* p)
 {
@@ -104,7 +95,7 @@ static BOOL g_bAlertStateInit = FALSE;
 
 static void UpdateWindowTitle(HWND hWnd)
 {
-    SetWindowTextA(hWnd, "HDDHealth Monitor 1.2");
+    SetWindowTextA(hWnd, "HDDHealth Monitor 1.3");
 }
 
 HBRUSH  g_hbrBG     = NULL;
@@ -399,8 +390,7 @@ static void DoSaveReport(HWND hWnd)
         return;
     }
 
-    /* Helper to format a line and write it (UTF-8 BOM not needed - pure ASCII).
-     * Variadic macro so the format string + extra args work like printf. */
+    /* printf-style helper for writing report lines */
     #define RPT_LINE(...) do { \
         char _szLine[512]; \
         _snprintf(_szLine, sizeof(_szLine), __VA_ARGS__); \
@@ -412,7 +402,7 @@ static void DoSaveReport(HWND hWnd)
     RPT_LINE("  HDDHealth Monitor - Drive Health Report");
     RPT_LINE("  Generated: %04d-%02d-%02d %02d:%02d:%02d",
         st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond);
-    RPT_LINE("  Author : Ari Sohandri Putra (ARImetic Inc.)");
+    RPT_LINE("  Author : Ari Sohandri Putra");
     RPT_LINE("  Sponsor: https://github.com/sponsors/arisohandriputra/");
     RPT_LINE("  License: MIT (100%% Free Open Source Software)");
     RPT_LINE("================================================================");
@@ -425,6 +415,20 @@ static void DoSaveReport(HWND hWnd)
         DRIVE_INFO* pInfo = &g_Drives[i];
         char szSize[32];
 
+        /* Look up this drive in the embedded JSON database so the report
+         * shows the same data as the main window (vendor, capacity, type,
+         * controller, rotation rate all come from the JSON if available). */
+        DRIVE_DB_ENTRY dbEntry;
+        ZeroMemory(&dbEntry, sizeof(dbEntry));
+        DriveDB_Lookup(pInfo->szModel, pInfo->szFirmware, &dbEntry);
+
+        /* Pick the best source for each field: JSON db first, then detected */
+        const char* pszVendor   = (dbEntry.bFound && dbEntry.szTrademark[0])  ? dbEntry.szTrademark  : GetVendorName(pInfo->eVendor);
+        const char* pszCapacity = (dbEntry.bFound && dbEntry.szCapacity[0])    ? dbEntry.szCapacity    : (FormatSize(pInfo->dwCapacityMB, szSize, sizeof(szSize)), szSize);
+        const char* pszType    = (dbEntry.bFound && dbEntry.szType[0])        ? dbEntry.szType        : GetDriveTypeName(pInfo->eType);
+        const char* pszCtrl    = (dbEntry.bFound && dbEntry.szController[0]) ? dbEntry.szController  : "";
+        const char* pszRotRate = (dbEntry.bFound && dbEntry.szRotationRate[0])? dbEntry.szRotationRate: "";
+
         RPT_LINE("----------------------------------------------------------------");
         RPT_LINE("DRIVE %d of %d", i + 1, g_nDriveCount);
         RPT_LINE("----------------------------------------------------------------");
@@ -436,13 +440,18 @@ static void DoSaveReport(HWND hWnd)
             strlen(pInfo->szSerial) ? pInfo->szSerial : "(unknown)");
         RPT_LINE("Firmware        : %s",
             strlen(pInfo->szFirmware) ? pInfo->szFirmware : "(unknown)");
-        RPT_LINE("Capacity        : %s", szSize);
-        RPT_LINE("Type            : %s", GetDriveTypeName(pInfo->eType));
-        RPT_LINE("Vendor          : %s", GetVendorName(pInfo->eVendor));
+        RPT_LINE("Capacity        : %s", pszCapacity);
+        RPT_LINE("Type            : %s", pszType);
+        RPT_LINE("Vendor          : %s", pszVendor);
         RPT_LINE("Health Status   : %s", GetHealthStatusName(pInfo->eHealthStatus));
         RPT_LINE("SMART Supported : %s", pInfo->bSMART_Supported ? "Yes" : "No");
         RPT_LINE("SMART Enabled   : %s", pInfo->bSMART_Enabled ? "Yes" : "No");
         RPT_LINE("Access Method   : %s", GetAccessMethodName(pInfo->eAccessMethod));
+        if (pszCtrl[0])
+            RPT_LINE("Controller      : %s", pszCtrl);
+        if (pszRotRate[0])
+            RPT_LINE("Rotation Rate   : %s", pszRotRate);
+
         RPT_LINE("Temperature     : %d C", pInfo->nTemperatureC);
         RPT_LINE("Health %%        : %d", pInfo->nHealthPercent);
         RPT_LINE("Performance %%   : %d", pInfo->nPerformancePercent);
@@ -608,33 +617,34 @@ static void CheckCriticalAlerts(void)
         if (!pD->bSMART_Supported) continue;
 
         if (pD->nTemperatureC > 0) {
-            if (pD->nTemperatureC >= ALERT_TEMP_CRITICAL_C && !pA->bTempCritSent) {
+            if (pD->nTemperatureC >= g_Settings.nTempCritC && !pA->bTempCritSent) {
                 lstrcpyA(szTitle, "!! CRITICAL: Drive Overheating !!");
                 _snprintf(szMsg, sizeof(szMsg),
                     "%s\nTemperature: %d\xb0""C (critical threshold: %d\xb0""C)\n"
                     "Power down or improve airflow immediately!",
-                    DriveName(pD), pD->nTemperatureC, ALERT_TEMP_CRITICAL_C);
+                    DriveName(pD), pD->nTemperatureC, g_Settings.nTempCritC);
                 TrayBalloon(szTitle, szMsg, NIIF_ERROR);
                 pA->bTempCritSent = TRUE;
                 pA->bTempWarnSent = TRUE;
-            } else if (pD->nTemperatureC >= ALERT_TEMP_WARN_C && !pA->bTempWarnSent) {
+            } else if (pD->nTemperatureC >= g_Settings.nTempWarnC && !pA->bTempWarnSent) {
                 lstrcpyA(szTitle, "Warning: Drive Temperature High");
                 _snprintf(szMsg, sizeof(szMsg),
                     "%s\nTemperature: %d\xb0""C (warning threshold: %d\xb0""C)\n"
                     "Check system cooling.",
-                    DriveName(pD), pD->nTemperatureC, ALERT_TEMP_WARN_C);
+                    DriveName(pD), pD->nTemperatureC, g_Settings.nTempWarnC);
                 TrayBalloon(szTitle, szMsg, NIIF_WARNING);
                 pA->bTempWarnSent = TRUE;
             }
 
-            if (pD->nTemperatureC < ALERT_TEMP_WARN_C - 5) {
+            /* Reset alert flags once temp drops 5 below warning threshold */
+            if (pD->nTemperatureC < g_Settings.nTempWarnC - 5) {
                 pA->bTempWarnSent = FALSE;
                 pA->bTempCritSent = FALSE;
             }
         }
 
         if (pD->nHealthPercent >= 0) {
-            if (pD->nHealthPercent < ALERT_HEALTH_CRITICAL && !pA->bHealthCritSent) {
+            if (pD->nHealthPercent < g_Settings.nHealthCritPct && !pA->bHealthCritSent) {
                 lstrcpyA(szTitle, "!! CRITICAL: Drive Health Very Poor !!");
                 _snprintf(szMsg, sizeof(szMsg),
                     "%s\nHealth: %d%% — Back up all data immediately!\n"
@@ -643,13 +653,19 @@ static void CheckCriticalAlerts(void)
                 TrayBalloon(szTitle, szMsg, NIIF_ERROR);
                 pA->bHealthCritSent = TRUE;
                 pA->bHealthWarnSent = TRUE;
-            } else if (pD->nHealthPercent < ALERT_HEALTH_WARN && !pA->bHealthWarnSent) {
+            } else if (pD->nHealthPercent < g_Settings.nHealthWarnPct && !pA->bHealthWarnSent) {
                 lstrcpyA(szTitle, "Warning: Drive Health Degraded");
                 _snprintf(szMsg, sizeof(szMsg),
                     "%s\nHealth: %d%% — Monitor closely and back up data.",
                     DriveName(pD), pD->nHealthPercent);
                 TrayBalloon(szTitle, szMsg, NIIF_WARNING);
                 pA->bHealthWarnSent = TRUE;
+            }
+
+            /* Reset alert flags once health recovers above warning + 5 */
+            if (pD->nHealthPercent >= g_Settings.nHealthWarnPct + 5) {
+                pA->bHealthWarnSent = FALSE;
+                pA->bHealthCritSent = FALSE;
             }
         }
 
@@ -1530,11 +1546,13 @@ void UpdateDriveInfo(HWND hWnd, int nDriveIdx)
 {
     if (nDriveIdx < 0 || nDriveIdx >= g_nDriveCount) {
         SetDlgItemTextA(hWnd, IDC_MODEL_STATIC,       "-");
+        SetDlgItemTextA(hWnd, IDC_VENDOR_STATIC,      "-");
         SetDlgItemTextA(hWnd, IDC_SERIAL_STATIC,      "-");
         SetDlgItemTextA(hWnd, IDC_FIRMWARE_STATIC,    "-");
         SetDlgItemTextA(hWnd, IDC_SIZE_STATIC,        "-");
         SetDlgItemTextA(hWnd, IDC_TEMP_STATIC,        "-");
         SetDlgItemTextA(hWnd, IDC_STATUS_STATIC,      "Not Available");
+        SetDlgItemTextA(hWnd, IDC_CONTROLLER_STATIC,  "-");
         SetDlgItemTextA(hWnd, IDC_READ_SPEED_STATIC,  "-");
 
         SetDlgItemTextA(hWnd, IDC_PREDICT_STATIC,     "");
@@ -1544,8 +1562,27 @@ void UpdateDriveInfo(HWND hWnd, int nDriveIdx)
     DRIVE_INFO* pInfo = &g_Drives[nDriveIdx];
     char szBuf[256];
 
+    /* Look up this drive in the embedded JSON database — we use the
+     * vendor, capacity, and rotation rate from there if available. */
+    DRIVE_DB_ENTRY dbEntry;
+    ZeroMemory(&dbEntry, sizeof(dbEntry));
+    DriveDB_Lookup(pInfo->szModel, pInfo->szFirmware, &dbEntry);
+
     SetDlgItemTextA(hWnd, IDC_MODEL_STATIC,
                     strlen(pInfo->szModel) ? pInfo->szModel : "-");
+
+    /* Vendor field — prefer the database value, fall back to detected */
+    {
+        const char* pszVendor = "-";
+        if (dbEntry.bFound && dbEntry.szTrademark[0])
+            pszVendor = dbEntry.szTrademark;
+        else {
+            const char* pszDetected = GetVendorName(pInfo->eVendor);
+            if (pszDetected && pszDetected[0] && strcmp(pszDetected, "Unknown") != 0)
+                pszVendor = pszDetected;
+        }
+        SetDlgItemTextA(hWnd, IDC_VENDOR_STATIC, pszVendor);
+    }
 
     SetDlgItemTextA(hWnd, IDC_SERIAL_STATIC,
                     strlen(pInfo->szSerial) ? pInfo->szSerial : "-");
@@ -1553,12 +1590,18 @@ void UpdateDriveInfo(HWND hWnd, int nDriveIdx)
     SetDlgItemTextA(hWnd, IDC_FIRMWARE_STATIC,
                     strlen(pInfo->szFirmware) ? pInfo->szFirmware : "-");
 
+    /* Capacity — prefer the database value (which includes GiB), fall
+     * back to the detected size + type label. */
     {
-        char szSize[32];
-        FormatSize(pInfo->dwCapacityMB, szSize, sizeof(szSize));
-        _snprintf(szBuf, sizeof(szBuf), "%s   Type: %s",
-                  szSize, GetDriveTypeName(pInfo->eType));
-        SetDlgItemTextA(hWnd, IDC_SIZE_STATIC, szBuf);
+        if (dbEntry.bFound && dbEntry.szCapacity[0]) {
+            SetDlgItemTextA(hWnd, IDC_SIZE_STATIC, dbEntry.szCapacity);
+        } else {
+            char szSize[32];
+            FormatSize(pInfo->dwCapacityMB, szSize, sizeof(szSize));
+            _snprintf(szBuf, sizeof(szBuf), "%s   Type: %s",
+                      szSize, GetDriveTypeName(pInfo->eType));
+            SetDlgItemTextA(hWnd, IDC_SIZE_STATIC, szBuf);
+        }
     }
 
     if (pInfo->nTemperatureC > 0)
@@ -1595,10 +1638,36 @@ void UpdateDriveInfo(HWND hWnd, int nDriveIdx)
     }
     SetDlgItemTextA(hWnd, IDC_STATUS_STATIC, szBuf);
 
-    if (pInfo->nReadSpeedMBs > 0)
-        _snprintf(szBuf, sizeof(szBuf), "%d MB/s", pInfo->nReadSpeedMBs);
-    else
+    /* Type field — prefer JSON database value, fallback to detected type */
+    {
+        const char* pszType = "-";
+        if (dbEntry.bFound && dbEntry.szType[0])
+            pszType = dbEntry.szType;
+        else {
+            const char* pszDetected = GetDriveTypeName(pInfo->eType);
+            if (pszDetected && pszDetected[0] && strcmp(pszDetected, "Unknown") != 0)
+                pszType = pszDetected;
+        }
+        SetDlgItemTextA(hWnd, IDC_CONTROLLER_STATIC, pszType);
+    }
+
+    /* Power-on hours — NVMe gives us 64-bit, SATA gives 32-bit */
+    if (pInfo->bIsNVMe && pInfo->bSMART_Supported) {
+        unsigned __int64 qwPOH = NVMeRead128Lo(pInfo->nvmeHealth.PowerOnHours);
+        if (qwPOH > 0) {
+            double fYears = (double)qwPOH / 24.0 / 365.25;
+            _snprintf(szBuf, sizeof(szBuf), "%llu hrs (%.1f yrs)",
+                (unsigned __int64)qwPOH, fYears);
+        } else {
+            _snprintf(szBuf, sizeof(szBuf), "-");
+        }
+    } else if (pInfo->dwPowerOnHours > 0) {
+        double fYears = (double)pInfo->dwPowerOnHours / 24.0 / 365.25;
+        _snprintf(szBuf, sizeof(szBuf), "%lu hrs (%.1f yrs)",
+            (unsigned long)pInfo->dwPowerOnHours, fYears);
+    } else {
         _snprintf(szBuf, sizeof(szBuf), "-");
+    }
     SetDlgItemTextA(hWnd, IDC_READ_SPEED_STATIC, szBuf);
 
     char szReason[256];
@@ -2272,7 +2341,7 @@ static LRESULT CALLBACK AboutDlgProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM
                 hDlg, (HMENU)0, g_hInst, NULL);
 
             HWND hCopy = CreateWindowExA(0, "STATIC",
-                "Copyright \xa9 2026 ARImetic Inc. All Rights Reserved.",
+                "Copyright \xa9 2026 Ari Sohandri Putra. All Rights Reserved.",
                 WS_CHILD | WS_VISIBLE | SS_CENTER,
                 20, 118, cx - 40, 18,
                 hDlg, (HMENU)0, g_hInst, NULL);
@@ -2461,10 +2530,18 @@ static void CreateMenuBar(HWND hWnd)
 
     HMENU hFile = CreatePopupMenu();
     AppendMenuA(hFile, MF_STRING, IDM_SCREENSHOT,  "Save Screenshot\tCtrl+S");
-    AppendMenuA(hFile, MF_STRING, IDM_SAVE_REPORT, "Save Report...\tCtrl+R");
+    AppendMenuA(hFile, MF_STRING, IDM_SAVE_REPORT,  "Save Report...\tCtrl+R");
+    AppendMenuA(hFile, MF_STRING, IDM_SAVE_JSON,    "Save JSON Report...\tCtrl+J");
     AppendMenuA(hFile, MF_SEPARATOR, 0, NULL);
-    AppendMenuA(hFile, MF_STRING, IDM_EXIT,       "Exit");
+    AppendMenuA(hFile, MF_STRING, IDM_EXIT,        "Exit");
     AppendMenuA(hMenuBar, MF_POPUP, (UINT_PTR)hFile, "File");
+
+    HMENU hTools = CreatePopupMenu();
+    AppendMenuA(hTools, MF_STRING, IDM_BENCHMARK,    "Benchmark Drive...\tCtrl+B");
+    AppendMenuA(hTools, MF_SEPARATOR, 0, NULL);
+    AppendMenuA(hTools, MF_STRING, IDM_SETTINGS,    "Settings...");
+    AppendMenuA(hTools, MF_STRING, IDM_SYSINFO,     "System Information");
+    AppendMenuA(hMenuBar, MF_POPUP, (UINT_PTR)hTools, "Tools");
 
     HMENU hHelp = CreatePopupMenu();
     AppendMenuA(hHelp, MF_STRING, IDM_DONATE, "Donate...");
@@ -2524,6 +2601,7 @@ void CreateControls(HWND hWnd)
     int nValX    = nInfoX + nLblW + 4;
     int nValW    = WINDOW_W - nValX - 8;
 
+    /* Model */
     { HWND h = CreateWindowExA(0, "STATIC", "Model",
         WS_CHILD | WS_VISIBLE | SS_LEFT,
         nInfoX, nInfoY + (nInfoH + nInfoGap) * 0, nLblW, nInfoH,
@@ -2535,89 +2613,130 @@ void CreateControls(HWND hWnd)
         hWnd, (HMENU)IDC_MODEL_STATIC, g_hInst, NULL);
       SendMessage(h, WM_SETFONT, (WPARAM)g_hFontNormal, TRUE); }
 
-    { HWND h = CreateWindowExA(0, "STATIC", "Serial No.",
+    /* Vendor */
+    { HWND h = CreateWindowExA(0, "STATIC", "Vendor",
         WS_CHILD | WS_VISIBLE | SS_LEFT,
         nInfoX, nInfoY + (nInfoH + nInfoGap) * 1, nLblW, nInfoH,
-        hWnd, (HMENU)IDC_SERIAL_LABEL, g_hInst, NULL);
+        hWnd, (HMENU)IDC_VENDOR_LABEL, g_hInst, NULL);
       SendMessage(h, WM_SETFONT, (WPARAM)g_hFontSmall, TRUE); }
     { HWND h = CreateWindowExA(0, "STATIC", "-",
         WS_CHILD | WS_VISIBLE | SS_LEFT,
         nValX, nInfoY + (nInfoH + nInfoGap) * 1, nValW, nInfoH,
-        hWnd, (HMENU)IDC_SERIAL_STATIC, g_hInst, NULL);
+        hWnd, (HMENU)IDC_VENDOR_STATIC, g_hInst, NULL);
       SendMessage(h, WM_SETFONT, (WPARAM)g_hFontNormal, TRUE); }
 
-    { HWND h = CreateWindowExA(0, "STATIC", "Firmware",
+    /* Serial No. */
+    { HWND h = CreateWindowExA(0, "STATIC", "Serial No.",
         WS_CHILD | WS_VISIBLE | SS_LEFT,
         nInfoX, nInfoY + (nInfoH + nInfoGap) * 2, nLblW, nInfoH,
-        hWnd, (HMENU)IDC_FIRMWARE_LABEL, g_hInst, NULL);
+        hWnd, (HMENU)IDC_SERIAL_LABEL, g_hInst, NULL);
       SendMessage(h, WM_SETFONT, (WPARAM)g_hFontSmall, TRUE); }
     { HWND h = CreateWindowExA(0, "STATIC", "-",
         WS_CHILD | WS_VISIBLE | SS_LEFT,
         nValX, nInfoY + (nInfoH + nInfoGap) * 2, nValW, nInfoH,
-        hWnd, (HMENU)IDC_FIRMWARE_STATIC, g_hInst, NULL);
+        hWnd, (HMENU)IDC_SERIAL_STATIC, g_hInst, NULL);
       SendMessage(h, WM_SETFONT, (WPARAM)g_hFontNormal, TRUE); }
 
-    { HWND h = CreateWindowExA(0, "STATIC", "Capacity",
+    /* Firmware */
+    { HWND h = CreateWindowExA(0, "STATIC", "Firmware",
         WS_CHILD | WS_VISIBLE | SS_LEFT,
         nInfoX, nInfoY + (nInfoH + nInfoGap) * 3, nLblW, nInfoH,
-        hWnd, (HMENU)IDC_SIZE_LABEL, g_hInst, NULL);
+        hWnd, (HMENU)IDC_FIRMWARE_LABEL, g_hInst, NULL);
       SendMessage(h, WM_SETFONT, (WPARAM)g_hFontSmall, TRUE); }
     { HWND h = CreateWindowExA(0, "STATIC", "-",
         WS_CHILD | WS_VISIBLE | SS_LEFT,
         nValX, nInfoY + (nInfoH + nInfoGap) * 3, nValW, nInfoH,
-        hWnd, (HMENU)IDC_SIZE_STATIC, g_hInst, NULL);
+        hWnd, (HMENU)IDC_FIRMWARE_STATIC, g_hInst, NULL);
       SendMessage(h, WM_SETFONT, (WPARAM)g_hFontNormal, TRUE); }
 
-    { HWND h = CreateWindowExA(0, "STATIC", "Temperature",
+    /* Capacity */
+    { HWND h = CreateWindowExA(0, "STATIC", "Capacity",
         WS_CHILD | WS_VISIBLE | SS_LEFT,
         nInfoX, nInfoY + (nInfoH + nInfoGap) * 4, nLblW, nInfoH,
-        hWnd, (HMENU)IDC_TEMP_LABEL, g_hInst, NULL);
+        hWnd, (HMENU)IDC_SIZE_LABEL, g_hInst, NULL);
       SendMessage(h, WM_SETFONT, (WPARAM)g_hFontSmall, TRUE); }
     { HWND h = CreateWindowExA(0, "STATIC", "-",
         WS_CHILD | WS_VISIBLE | SS_LEFT,
         nValX, nInfoY + (nInfoH + nInfoGap) * 4, nValW, nInfoH,
-        hWnd, (HMENU)IDC_TEMP_STATIC, g_hInst, NULL);
+        hWnd, (HMENU)IDC_SIZE_STATIC, g_hInst, NULL);
       SendMessage(h, WM_SETFONT, (WPARAM)g_hFontNormal, TRUE); }
 
-    { HWND h = CreateWindowExA(0, "STATIC", "S.M.A.R.T.",
+    /* Temperature */
+    { HWND h = CreateWindowExA(0, "STATIC", "Temperature",
         WS_CHILD | WS_VISIBLE | SS_LEFT,
         nInfoX, nInfoY + (nInfoH + nInfoGap) * 5, nLblW, nInfoH,
-        hWnd, (HMENU)IDC_STATUS_LABEL, g_hInst, NULL);
+        hWnd, (HMENU)IDC_TEMP_LABEL, g_hInst, NULL);
       SendMessage(h, WM_SETFONT, (WPARAM)g_hFontSmall, TRUE); }
     { HWND h = CreateWindowExA(0, "STATIC", "-",
         WS_CHILD | WS_VISIBLE | SS_LEFT,
         nValX, nInfoY + (nInfoH + nInfoGap) * 5, nValW, nInfoH,
-        hWnd, (HMENU)IDC_STATUS_STATIC, g_hInst, NULL);
+        hWnd, (HMENU)IDC_TEMP_STATIC, g_hInst, NULL);
       SendMessage(h, WM_SETFONT, (WPARAM)g_hFontNormal, TRUE); }
 
-    { HWND h = CreateWindowExA(0, "STATIC", "Sec. Speed",
+    /* S.M.A.R.T. */
+    { HWND h = CreateWindowExA(0, "STATIC", "S.M.A.R.T.",
         WS_CHILD | WS_VISIBLE | SS_LEFT,
         nInfoX, nInfoY + (nInfoH + nInfoGap) * 6, nLblW, nInfoH,
-        hWnd, (HMENU)IDC_READ_SPEED_LABEL, g_hInst, NULL);
+        hWnd, (HMENU)IDC_STATUS_LABEL, g_hInst, NULL);
       SendMessage(h, WM_SETFONT, (WPARAM)g_hFontSmall, TRUE); }
     { HWND h = CreateWindowExA(0, "STATIC", "-",
         WS_CHILD | WS_VISIBLE | SS_LEFT,
         nValX, nInfoY + (nInfoH + nInfoGap) * 6, nValW, nInfoH,
+        hWnd, (HMENU)IDC_STATUS_STATIC, g_hInst, NULL);
+      SendMessage(h, WM_SETFONT, (WPARAM)g_hFontNormal, TRUE); }
+
+    /* Type — pulled from JSON database, fallback to detected drive type */
+    { HWND h = CreateWindowExA(0, "STATIC", "Type",
+        WS_CHILD | WS_VISIBLE | SS_LEFT,
+        nInfoX, nInfoY + (nInfoH + nInfoGap) * 7, nLblW, nInfoH,
+        hWnd, (HMENU)IDC_CONTROLLER_LABEL, g_hInst, NULL);
+      SendMessage(h, WM_SETFONT, (WPARAM)g_hFontSmall, TRUE); }
+    { HWND h = CreateWindowExA(0, "STATIC", "-",
+        WS_CHILD | WS_VISIBLE | SS_LEFT,
+        nValX, nInfoY + (nInfoH + nInfoGap) * 7, nValW, nInfoH,
+        hWnd, (HMENU)IDC_CONTROLLER_STATIC, g_hInst, NULL);
+      SendMessage(h, WM_SETFONT, (WPARAM)g_hFontNormal, TRUE); }
+
+    /* Power-On Hours */
+    { HWND h = CreateWindowExA(0, "STATIC", "Power-On Hours",
+        WS_CHILD | WS_VISIBLE | SS_LEFT,
+        nInfoX, nInfoY + (nInfoH + nInfoGap) * 8, nLblW, nInfoH,
+        hWnd, (HMENU)IDC_READ_SPEED_LABEL, g_hInst, NULL);
+      SendMessage(h, WM_SETFONT, (WPARAM)g_hFontSmall, TRUE); }
+    { HWND h = CreateWindowExA(0, "STATIC", "-",
+        WS_CHILD | WS_VISIBLE | SS_LEFT,
+        nValX, nInfoY + (nInfoH + nInfoGap) * 8, nValW, nInfoH,
         hWnd, (HMENU)IDC_READ_SPEED_STATIC, g_hInst, NULL);
       SendMessage(h, WM_SETFONT, (WPARAM)g_hFontNormal, TRUE); }
 
     HWND hPred = CreateWindowExA(0, "STATIC", "",
         WS_CHILD | WS_VISIBLE | SS_LEFT,
-        nRightX, 240, 430, 17,
+        nRightX, 248, 430, 17,
         hWnd, (HMENU)IDC_PREDICT_STATIC, g_hInst, NULL);
 
     SendMessage(hPred, WM_SETFONT, (WPARAM)g_hFontNormal, TRUE);
 
+    /* Two buttons side by side, fitting within the 190px left column.
+     * Save Report: 90px wide, Drive Info: 90px wide, 6px gap between. */
     HWND hSaveBtn = CreateWindowExA(0, "BUTTON", "Save Report",
         WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-        nRightX, 160, 120, 24,
+        nRightX, 160, 90, 24,
         hWnd, (HMENU)IDC_SAVE_REPORT_BTN, g_hInst, NULL);
     SendMessage(hSaveBtn, WM_SETFONT, (WPARAM)g_hFontSmall, TRUE);
+
+    /* Drive Info button — looks up the selected drive in the embedded
+     * database (drives.json, baked into the .exe as a resource) and
+     * shows general specs in a dialog. */
+    HWND hInfoBtn = CreateWindowExA(0, "BUTTON", "Drive Info",
+        WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+        nRightX + 96, 160, 90, 24,
+        hWnd, (HMENU)IDC_DRIVE_INFO_BTN, g_hInst, NULL);
+    SendMessage(hInfoBtn, WM_SETFONT, (WPARAM)g_hFontSmall, TRUE);
 
     HWND hList = CreateWindowExA(
         WS_EX_CLIENTEDGE, WC_LISTVIEWA, NULL,
         WS_CHILD | WS_VISIBLE | LVS_REPORT | LVS_SHOWSELALWAYS | LVS_NOSORTHEADER,
-        nRightX, 262, 540, 340,
+        nRightX, 272, 540, 330,
         hWnd, (HMENU)IDC_ATTR_LIST, g_hInst, NULL
     );
     SendMessage(hList, WM_SETFONT, (WPARAM)g_hFontSmall, TRUE);
@@ -2667,12 +2786,13 @@ LRESULT CALLBACK MainWndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
     case WM_CREATE:
         g_hMainWnd = hWnd;
         RegisterHealthBarClass(g_hInst);
+        Settings_Load();    /* Load settings.ini before UI is built */
         CreateGDIObjects();
         CreateMenuBar(hWnd);
         CreateControls(hWnd);
         TrayIcon_Add(hWnd);
         DeviceNotify_Register(hWnd);
-        SetTimer(hWnd, IDT_REFRESH, REFRESH_INTERVAL_MS, NULL);
+        SetTimer(hWnd, IDT_REFRESH, g_Settings.nRefreshIntervalMs, NULL);
         SetTimer(hWnd, IDT_TITLE_UPDATE, 1000, NULL);
 
         UpdateWindowTitle(hWnd);
@@ -3066,6 +3186,30 @@ LRESULT CALLBACK MainWndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
             else if (nCtrl == IDC_SAVE_REPORT_BTN || nCtrl == IDM_SAVE_REPORT) {
                 DoSaveReport(hWnd);
             }
+            else if (nCtrl == IDM_SAVE_JSON) {
+                Tools_SaveJSONReport(hWnd);
+            }
+            else if (nCtrl == IDM_BENCHMARK) {
+                Tools_ShowBenchmarkDialog(hWnd);
+            }
+            else if (nCtrl == IDC_DRIVE_INFO_BTN) {
+                DriveDB_ShowDialog(hWnd);
+            }
+            else if (nCtrl == IDM_SETTINGS) {
+                Settings_ShowDialog(hWnd);
+                /* After Settings closes, reset the refresh timer with the
+                 * new interval and re-evaluate alerts with new thresholds. */
+                KillTimer(hWnd, IDT_REFRESH);
+                SetTimer(hWnd, IDT_REFRESH, g_Settings.nRefreshIntervalMs, NULL);
+                /* Reset alert states so they re-fire with new thresholds */
+                ZeroMemory(g_AlertState, sizeof(g_AlertState));
+                g_bAlertStateInit = FALSE;
+                /* Trigger an immediate refresh */
+                RefreshData(hWnd);
+            }
+            else if (nCtrl == IDM_SYSINFO) {
+                Tools_ShowSystemInfoDialog(hWnd);
+            }
             else if (nCtrl == IDM_ABOUT) {
                 ShowAboutDialog(hWnd);
             }
@@ -3141,33 +3285,35 @@ LRESULT CALLBACK MainWndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
             int nValW2  = cxClient - nValX2 - 8;
             if (nValW2 < 40) nValW2 = 40;
             int nInfoY2 = 36, nInfoH2 = 18, nInfoGap2 = 4;
-            { int lblIds[] = { IDC_MODEL_LABEL, IDC_SERIAL_LABEL, IDC_FIRMWARE_LABEL,
+            /* New row order (9 rows): Model, Vendor, Serial, Firmware,
+             * Size, Temp, Status, Controller, Power-On Hours */
+            { int lblIds[] = { IDC_MODEL_LABEL, IDC_VENDOR_LABEL, IDC_SERIAL_LABEL, IDC_FIRMWARE_LABEL,
                                IDC_SIZE_LABEL, IDC_TEMP_LABEL, IDC_STATUS_LABEL,
-                               IDC_READ_SPEED_LABEL };
+                               IDC_CONTROLLER_LABEL, IDC_READ_SPEED_LABEL };
               int k2;
-              for (k2 = 0; k2 < 7; k2++) {
+              for (k2 = 0; k2 < 9; k2++) {
                   HWND hL = GetDlgItem(hWnd, lblIds[k2]);
                   if (hL) SetWindowPos(hL, NULL, nInfoX,
                       nInfoY2 + (nInfoH2 + nInfoGap2) * k2, nLblW2, nInfoH2, SWP_NOZORDER);
               }
             }
 
-            { int valIds[] = { IDC_MODEL_STATIC, IDC_SERIAL_STATIC, IDC_FIRMWARE_STATIC,
+            { int valIds[] = { IDC_MODEL_STATIC, IDC_VENDOR_STATIC, IDC_SERIAL_STATIC, IDC_FIRMWARE_STATIC,
                                IDC_SIZE_STATIC, IDC_TEMP_STATIC, IDC_STATUS_STATIC,
-                               IDC_READ_SPEED_STATIC };
+                               IDC_CONTROLLER_STATIC, IDC_READ_SPEED_STATIC };
               int k3;
-              for (k3 = 0; k3 < 7; k3++) {
+              for (k3 = 0; k3 < 9; k3++) {
                   HWND hV = GetDlgItem(hWnd, valIds[k3]);
                   if (hV) SetWindowPos(hV, NULL, nValX2,
                       nInfoY2 + (nInfoH2 + nInfoGap2) * k3, nValW2, nInfoH2, SWP_NOZORDER);
               }
             }
             HWND hPred = GetDlgItem(hWnd, IDC_PREDICT_STATIC);
-        if (hPred) SetWindowPos(hPred, NULL, nRightX, 218, cxClient - nRightX - 8, 17, SWP_NOZORDER);
+        if (hPred) SetWindowPos(hPred, NULL, nRightX, 248, cxClient - nRightX - 8, 17, SWP_NOZORDER);
 
             HWND hList = GetDlgItem(hWnd, IDC_ATTR_LIST);
             if (hList) {
-                int nListTop = 243;
+                int nListTop = 272;
                 int nListH   = cyClient - nListTop - 8;
                 if (nListH < 50) nListH = 50;
                 SetWindowPos(hList, NULL, nRightX, nListTop,
@@ -3182,6 +3328,7 @@ LRESULT CALLBACK MainWndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         KillTimer(hWnd, IDT_HOTPLUG);
         DeviceNotify_Unregister();
         TrayIcon_Remove();
+        Settings_Save();   /* persist alert thresholds + refresh interval */
         DestroyGDIObjects();
         if (g_gdiplusToken) { GdiplusShutdown(g_gdiplusToken); g_gdiplusToken = 0; }
         PostQuitMessage(0);

@@ -1,19 +1,15 @@
 /* ============================================================================
- *  HDDHealth Monitor - Win32 resource script
- *  ---------------------------------------------------------------------------
- *  100% Free and Open Source Software (FOSS).
+ *  HDDHealth Monitor 1.3 - Win32 resource script
  *
  *  Author  : Ari Sohandri Putra
- *  Company : ARImetic Inc.
  *  Sponsor : https://github.com/sponsors/arisohandriputra/
  *  License : MIT
  *
- *  This script defines:
- *    - The application icons (IDI_APPICON, IDI_HDD)
- *    - The side-by-side application manifest (Common-Controls v6 + admin)
- *    - The standard VS_VERSION_INFO block embedded into the .exe
+ *  Defines: app icons, embedded manifest (Common-Controls v6 + admin),
+ *  and the VS_VERSION_INFO block that Explorer shows in Properties.
  * ============================================================================
  */
+
 
 #include <windows.h>
 #include "resource.h"
@@ -26,6 +22,10 @@ IDI_HDD      ICON  "app.ico"
 /* Embed the application manifest (Common-Controls v6 + requireAdministrator). */
 1 24 "app.manifest"
 
+/* Embed the drive database (drives.json) as an RT_RCDATA resource.
+   This way it ships inside the .exe — no separate file to distribute. */
+IDR_DRIVES_JSON  RCDATA  "drives.json"
+
 /* ----------------------------------------------------------------------------
  *  Version information block.
  *
@@ -34,8 +34,8 @@ IDI_HDD      ICON  "app.ico"
  *  elsewhere in the project.
  * ---------------------------------------------------------------------------- */
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION    1,2,0,0
- PRODUCTVERSION 1,2,0,0
+ FILEVERSION    1,3,0,0
+ PRODUCTVERSION 1,3,0,0
  FILEFLAGSMASK  VS_FFI_FILEFLAGSMASK
  FILEFLAGS      0x0L
  FILEOS         VOS_NT_WINDOWS32
@@ -46,15 +46,15 @@ BEGIN
     BEGIN
         BLOCK "040904b0"
         BEGIN
-            VALUE "CompanyName",      "ARImetic Inc."
+            VALUE "CompanyName",      "Ari Sohandri Putra"
             VALUE "FileDescription",  "Low-Level HDD Health Monitor - Free Open Source (VS2010 build)"
-            VALUE "FileVersion",      "1.2.0.0"
-            VALUE "InternalName",     "HDD Health Monitor 1.2"
+            VALUE "FileVersion",      "1.3.0.0"
+            VALUE "InternalName",     "HDD Health Monitor 1.3"
             VALUE "LegalCopyright",   "Copyright (c) 2026 Ari Sohandri Putra. MIT License."
             VALUE "OriginalFilename", "HDDHealth.exe"
-            VALUE "ProductName",      "HDDHealth 1.2"
-            VALUE "ProductVersion",   "1.2.0.0"
-            VALUE "Comments",         "100% Free Open Source Software. Author: Ari Sohandri Putra (ARImetic Inc.). Sponsor: https://github.com/sponsors/arisohandriputra/"
+            VALUE "ProductName",      "HDDHealth 1.3"
+            VALUE "ProductVersion",   "1.3.0.0"
+            VALUE "Comments",         "100% Free Open Source Software. Author: Ari Sohandri Putra. Sponsor: https://github.com/sponsors/arisohandriputra/"
         END
     END
     BLOCK "VarFileInfo"

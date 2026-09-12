@@ -1,28 +1,16 @@
 /* ============================================================================
- *  HDDHealth Monitor - Application entry point
- *  ---------------------------------------------------------------------------
- *  100% Free and Open Source Software (FOSS).
- *
- *  This file implements the WinMain entry point.  It performs:
- *    - Single-instance enforcement via a named global mutex.
- *    - Common-controls initialization.
- *    - GDI object construction.
- *    - Main window class registration and creation.
- *    - The standard Win32 message loop.
+ *  HDDHealth Monitor 1.3 - WinMain entry point
  *
  *  Author  : Ari Sohandri Putra
- *  Company : ARImetic Inc.
  *  Sponsor : https://github.com/sponsors/arisohandriputra/
  *  License : MIT
+ *
+ *  Does the usual WinMain stuff: single-instance guard, common controls
+ *  init, GDI objects, window class, message loop.
  * ============================================================================
  */
-
-/* The two #pragma comment directives below are MSVC-specific.  They tell
-   the MSVC linker to pull in comctl32.lib and the Common-Controls v6 SxS
-   manifest.  MinGW / GCC ignores them (and emits a -Wunknown-pragmas
-   warning), so we wrap them in _MSC_VER to keep MinGW builds clean.  The
-   Makefile already passes -lcomctl32 in LDFLAGS, so MinGW links correctly
-   without these pragmas. */
+/* MSVC-only pragmas for comctl32.lib and Common-Controls v6 manifest.
+   MinGW ignores these (wrapped in _MSC_VER to keep it clean). */
 #ifdef _MSC_VER
 #pragma comment(lib, "comctl32.lib")
 #pragma comment(linker, "/manifestdependency:\"type='win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'\"")
@@ -47,10 +35,9 @@
 /*  Single-instance helpers                                           */
 /* ------------------------------------------------------------------ */
 
-/* Create the named global mutex with a NULL DACL so that any user
-   session can interact with it.  This is important because the app
-   requests elevation (requireAdministrator) and we still want a
-   per-machine singleton. */
+/* Global mutex with a NULL DACL so any user session can touch it.
+   We need this because the app runs elevated but we still want
+   one instance per machine. */
 static HANDLE CreateWorldMutex(void)
 {
     SECURITY_DESCRIPTOR sd;
@@ -156,7 +143,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
     HWND hWnd = CreateWindowExA(
         0,
         "LLHDMonitorMainWnd",
-        "HDDHealth Monitor 1.2",
+        "HDDHealth Monitor 1.3",
         WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX,
         nX, nY, WINDOW_W, WINDOW_H,
         NULL, hMenuBar, hInstance, NULL

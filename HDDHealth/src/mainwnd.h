@@ -1,22 +1,14 @@
 /* ============================================================================
- *  HDDHealth Monitor - Main window declarations
- *  ---------------------------------------------------------------------------
- *  100% Free and Open Source Software (FOSS).
+ *  HDDHealth Monitor 1.3 - Main window declarations
  *
  *  Author  : Ari Sohandri Putra
- *  Company : ARImetic Inc.
  *  Sponsor : https://github.com/sponsors/arisohandriputra/
  *  License : MIT
  *
- *  This header collects every shared declaration used by mainwnd.cpp:
- *    - Control / menu / timer IDs (IDC_*, IDM_*, IDT_*)
- *    - Color palette constants (CLR_*)
- *    - Layout constants (WINDOW_W, DRIVE_BTN_H, ...)
- *    - Global state (g_Drives, g_hMainWnd, GDI brushes / fonts, ...)
- *    - Public function prototypes (MainWndProc, ShowAboutDialog, ...)
+ *  Shared declarations used by mainwnd.cpp: control/menu/timer IDs,
+ *  color palette, layout constants, global state, function prototypes.
  * ============================================================================
  */
-
 #pragma once
 #ifndef MAINWND_H
 #define MAINWND_H
@@ -50,6 +42,11 @@
 #define IDC_STATUS_LABEL       1023
 #define IDC_READ_SPEED_LABEL   1024
 #define IDC_SAVE_REPORT_BTN    1025
+#define IDC_VENDOR_STATIC      1026
+#define IDC_VENDOR_LABEL       1027
+#define IDC_CONTROLLER_STATIC  1028
+#define IDC_CONTROLLER_LABEL   1029
+#define IDC_DRIVE_INFO_BTN     1030
 #define IDC_DRIVE_BTN_BASE   1100
 #define IDM_ABOUT            2001
 #define IDM_EXIT             2002
@@ -57,6 +54,11 @@
 #define IDM_SCREENSHOT       2004
 #define IDM_SAVE_REPORT      2005
 #define IDM_DONATE           2006
+/* New menu IDs added in v1.3 */
+#define IDM_SAVE_JSON        2007
+#define IDM_BENCHMARK        2009
+#define IDM_SETTINGS         2010
+#define IDM_SYSINFO          2011
 #define IDT_REFRESH          3001
 #define IDT_HOTPLUG          3002
 #define IDT_TITLE_UPDATE     3003

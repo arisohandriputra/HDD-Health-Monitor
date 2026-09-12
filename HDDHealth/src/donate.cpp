@@ -1,15 +1,14 @@
 /* ============================================================================
- *  HDDHealth Monitor - Donate module implementation
- *  ---------------------------------------------------------------------------
- *  100% Free and Open Source Software (FOSS).
+ *  HDDHealth Monitor 1.3 - Donate dialog
  *
  *  Author  : Ari Sohandri Putra
- *  Company : ARImetic Inc.
  *  Sponsor : https://github.com/sponsors/arisohandriputra/
  *  License : MIT
+ *
+ *  Just a simple dialog that opens the GitHub Sponsors page in the browser.
+ *  No license key, no trial, no activation — the program is unconditionally free.
  * ============================================================================
  */
-
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include <shellapi.h>
@@ -95,7 +94,7 @@ static LRESULT CALLBACK DonateDlgProc(HWND hDlg, UINT uMsg,
             /* ---- Author / sponsor attribution -------------------------- */
             char authorLine[128];
             _snprintf(authorLine, sizeof(authorLine),
-                "Author : %s (%s)", DONATE_AUTHOR, DONATE_COMPANY);
+                "Author : %s", DONATE_AUTHOR);
             HWND hAuthor = CreateWindowExA(0, "STATIC", authorLine,
                 WS_CHILD | WS_VISIBLE | SS_CENTER,
                 20, 168, cx - 40, 18, hDlg, NULL, g_hInst, NULL);
