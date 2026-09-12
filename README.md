@@ -1,33 +1,19 @@
 # HDDHealth Monitor
 
-**Free & Open Source** — v1.3
+**Free & Open Source** - v1.3
 
 Checks HDD/SSD/NVMe health by reading raw S.M.A.R.T. data straight from the drives. Built with Visual Studio 2010, compiles anywhere without messing with SDK paths. No runtime dependencies — everything's statically linked into one .exe.
-
----
-
-## Author
-
-**Ari Sohandri Putra** — [GitHub Sponsors](https://github.com/sponsors/arisohandriputra/)
-
-License: [MIT](./LICENSE) — 100% free, no strings attached.
-
----
-
-## What It Does
 
 - Reads S.M.A.R.T. data from ATA/SATA, USB (via SAT bridge), and NVMe drives
 - Shows health %, temperature, power-on hours, RPM (for mechanical HDDs)
 - Detects 42+ drive vendors (Samsung, WDC, Seagate, Phison, Silicon Motion, Innogrit, YMTC, etc.)
 - Tray notifications when a drive starts going bad (thresholds are configurable)
-- Hot-plug aware — USB drives show up the moment you plug them in
+- Hot-plug aware - USB drives show up the moment you plug them in
 - Export reports to TXT or JSON for documentation
 - 5-second sequential read benchmark with live progress bar
-- Drive Info button — looks up the selected drive in a built-in database (baked into the .exe) and shows full specs
+- Drive Info button - looks up the selected drive in a built-in database (baked into the .exe) and shows full specs
 - System info dialog (OS, CPU, RAM, drive count)
 - Save screenshots as PNG (via GDI+)
-
----
 
 ## Building with VS2010
 
@@ -47,29 +33,6 @@ msbuild HDDHealth-VS2010.sln /p:Configuration=Release /p:Platform=Win32
 Open `HDDHealth/HDDHealth.vcxproj` in a text editor and swap `v100` for:
 - VS2012: `v110` | VS2013: `v120` | VS2015: `v140`
 - VS2017: `v141` | VS2019: `v142` | VS2022: `v143`
-
----
-
-## Menu Layout
-
-```
-File
-├── Save Screenshot       Ctrl+S
-├── Save Report...        Ctrl+R     (TXT)
-├── Save JSON Report...   Ctrl+J     (JSON)
-└── Exit
-
-Tools
-├── Benchmark Drive...   Ctrl+B     (5-sec test, has a progress bar)
-├── Settings...                     (alert thresholds + refresh interval)
-└── System Information               (OS / CPU / RAM / drives)
-
-Help
-├── Donate...
-└── About HDDHealth Monitor
-```
-
----
 
 ## Main Window
 
@@ -95,7 +58,7 @@ The main window shows 9 info fields per drive:
 
 ## Drive Info Dialog
 
-Clicking the **Drive Info** button opens a dialog with general specs pulled from the built-in database (embedded in the .exe as a resource — no external files needed):
+Clicking the **Drive Info** button opens a dialog with general specs pulled from the built-in database (embedded in the .exe as a resource - no external files needed):
 
 - Trademark
 - Model
@@ -111,7 +74,7 @@ Clicking the **Drive Info** button opens a dialog with general specs pulled from
 - Advanced Format
 - Rotation rate
 
-The database is maintained by the developer and baked into the .exe via `drives.json` (compiled as an `RT_RCDATA` resource). To add or update entries, just edit `src/drives.json` and rebuild — the resource compiler embeds it automatically.
+The database is maintained by the developer and baked into the .exe via `drives.json` (compiled as an `RT_RCDATA` resource). To add or update entries, just edit `src/drives.json` and rebuild - the resource compiler embeds it automatically.
 
 ---
 
@@ -162,31 +125,25 @@ Power-On Hours  : 4321
 
 ## Runtime Notes
 
-- Needs admin (UAC prompt) — raw disk access requires it
+- Needs admin (UAC prompt) - raw disk access requires it
 - Silent startup with `/minimized` switch
 - DPI-aware, won't blur on HiDPI screens
 - Settings live in `%APPDATA%\HDDH\settings.ini`
 - Reports land in `<Documents>\HDDH_Reports\`
-- The drive database is embedded in the .exe — nothing extra to distribute
+- The drive database is embedded in the .exe - nothing extra to distribute
 
 ---
 
 ## Version History
 
-- **1.3** (current) — Big update: 22 new vendors, 50+ SMART attributes, Drive Info button with embedded database, benchmark with progress bar, settings that actually work, RPM for HDDs, Vendor/Capacity/Type from JSON
-- **1.2** — Swapped History Graph for Save Report, added VS2010 solution
-- **1.1** — Initial release, MinGW-only
+- **1.3** (current) - Big update: 22 new vendors, 50+ SMART attributes, Drive Info button with embedded database, benchmark with progress bar, settings that actually work, RPM for HDDs, Vendor/Capacity/Type from JSON
+- **1.2** - Swapped History Graph for Save Report, added VS2010 solution
+- **1.1** - Initial release, MinGW-only
 
 See [CHANGELOG.md](./CHANGELOG.md) for the full story.
 
 ---
 
-## Credits
-
-Inspired by CrystalDiskInfo, smartmontools, and HDDScan. Shoutout to those projects.
-
----
-
-If this tool saves your data, consider sponsoring!
+If this tool help you, consider sponsoring!
 
 > https://github.com/sponsors/arisohandriputra/
